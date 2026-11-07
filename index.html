@@ -1,0 +1,1082 @@
+<title>Agent Control Room</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: command bar (role, log sources) over tabbed workspace. Console tab = incident cards pinned above a live event feed. */
+:root{--bg:#f3f6f6;--panel:#ffffff;--panel2:#e9efef;--line:#d6dfe0;--fg:#13201f;--muted:#566866;--accent:#0b7a85;--accent-fg:#ffffff;--ok:#2a7d52;--warn:#a96a0b;--bad:#b83228;--ok-bg:#e0f2e8;--warn-bg:#fcf0d9;--bad-bg:#fbe8e5;--mono:'JetBrains Mono',ui-monospace,Menlo,Consolas,monospace;--sans:'Schibsted Grotesk',system-ui,-apple-system,Segoe UI,sans-serif;--r:8px}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0c1314;--panel:#121c1e;--panel2:#182628;--line:#263639;--fg:#e3eeed;--muted:#8da2a0;--accent:#3cbfc9;--accent-fg:#04191b;--ok:#5cc58f;--warn:#e0a643;--bad:#f0746a;--ok-bg:#12261c;--warn-bg:#2c2210;--bad-bg:#2e1715;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0c1314;--panel:#121c1e;--panel2:#182628;--line:#263639;--fg:#e3eeed;--muted:#8da2a0;--accent:#3cbfc9;--accent-fg:#04191b;--ok:#5cc58f;--warn:#e0a643;--bad:#f0746a;--ok-bg:#12261c;--warn-bg:#2c2210;--bad-bg:#2e1715;color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--sans);font-size:14px;line-height:1.45;padding-block:0 32px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:1280px;margin-inline:auto}
+button,select,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.bar{display:flex;flex-wrap:wrap;gap:12px 20px;align-items:center;justify-content:space-between;padding:16px 0 12px}
+.bar h1{font-size:20px;font-weight:600;margin:0;letter-spacing:-.01em}
+.bar .sub{color:var(--muted);font-size:12.5px;margin-top:2px}
+.ctl{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center}
+.ctl label{font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:3px}
+.sel,.inp{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:6px 9px;min-width:0}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{border:1px solid var(--line);background:var(--panel);border-radius:99px;padding:5px 11px;font-size:12.5px;color:var(--muted)}
+.chip[aria-pressed=true]{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);overflow-x:auto;margin-bottom:16px}
+.tabs button{background:none;border:0;border-bottom:2px solid transparent;padding:9px 13px;color:var(--muted);white-space:nowrap}
+.tabs button[aria-selected=true]{color:var(--fg);border-bottom-color:var(--accent);font-weight:500}
+.badge{display:inline-block;min-width:18px;text-align:center;border-radius:99px;background:var(--bad);color:#fff;font-size:11px;padding:0 6px;margin-left:6px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px}
+.kpi{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:11px 13px;min-width:0}
+.kpi .l{font-size:12px;color:var(--muted)}
+.kpi .v{font-size:22px;font-weight:500;font-variant-numeric:tabular-nums;margin-top:2px}
+.kpi.bad .v{color:var(--bad)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:14px;min-width:0}
+.card h3{margin:0 0 4px;font-size:15px;font-weight:600}
+.muted{color:var(--muted)}.small{font-size:12.5px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr));gap:12px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.tool{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+.btn{border:1px solid var(--line);background:var(--panel);border-radius:6px;padding:6px 11px;font-size:13px}
+.btn:hover{background:var(--panel2)}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:var(--accent-fg);font-weight:500}
+.btn.danger{color:var(--bad);border-color:var(--bad)}
+.btn.sm{padding:3px 8px;font-size:12px}
+.pill{display:inline-block;border-radius:99px;padding:1px 9px;font-size:12px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.pill.ok{background:var(--ok-bg);color:var(--ok);border-color:transparent}
+.pill.warn{background:var(--warn-bg);color:var(--warn);border-color:transparent}
+.pill.bad{background:var(--bad-bg);color:var(--bad);border-color:transparent}
+.tag{font-size:12px;background:var(--panel2);border-radius:4px;padding:1px 7px;color:var(--muted)}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;font-size:13px;margin:10px 0}
+.kv dt{color:var(--muted)}.kv dd{margin:0;min-width:0;overflow-wrap:anywhere}
+.meter{height:6px;background:var(--panel2);border-radius:4px;overflow:hidden;margin-top:4px}
+.meter i{display:block;height:100%;background:var(--accent)}
+.meter i.hot{background:var(--bad)}
+.inc{border:1px solid var(--bad);background:var(--bad-bg);border-radius:var(--r);padding:12px 14px;margin-bottom:10px}
+.inc.done{border-color:var(--line);background:var(--panel);opacity:.75}
+.inc code,.mono{font-family:var(--mono);font-size:12.5px}
+.guard{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin-top:10px}
+.guard fieldset{border:1px solid var(--line);border-radius:var(--r);margin:0;padding:10px 12px;min-width:0}
+.guard legend{font-weight:600;font-size:13px;padding:0 4px}
+.guard label{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:13px;margin-top:6px}
+.guard input[type=number]{width:64px}
+details.card>summary{cursor:pointer;font-weight:600}
+.tw{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r);background:var(--panel)}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+th{text-align:left;font-weight:500;color:var(--muted);font-size:12px;padding:7px 10px;border-bottom:1px solid var(--line);white-space:nowrap;background:var(--panel)}
+td{padding:6px 10px;border-bottom:1px solid var(--line);white-space:nowrap;font-size:13px}
+td.wrap{white-space:normal;min-width:180px}
+tr:last-child td{border-bottom:0}
+.log td{font-family:var(--mono);font-size:12.5px}
+.log tr.error td:nth-child(5){color:var(--bad)}
+.log tr.blocked td:nth-child(5){color:var(--warn)}
+.log tr.flag{background:var(--bad-bg)}
+.r{text-align:right}
+.empty{padding:28px;text-align:center;color:var(--muted);border:1px dashed var(--line);border-radius:var(--r)}
+.note{background:var(--warn-bg);color:var(--fg);border-radius:var(--r);padding:8px 12px;margin-bottom:12px;font-size:13px}
+.sheet{position:fixed;top:0;right:0;bottom:0;width:min(440px,100%);background:var(--panel);border-left:1px solid var(--line);box-shadow:-8px 0 24px rgba(0,0,0,.18);z-index:30;overflow:auto;padding:16px max(16px,env(safe-area-inset-right,0px)) calc(16px + env(safe-area-inset-bottom,0px)) 16px;padding-top:calc(16px + env(safe-area-inset-top,0px))}
+.sheet h2{margin:0 0 12px;font-size:17px}
+.f{display:flex;flex-direction:column;gap:4px;margin-bottom:11px}
+.f>span{font-size:12.5px;color:var(--muted)}
+.f .inp,.f textarea{width:100%}
+.opts{display:flex;flex-wrap:wrap;gap:6px 12px}
+.opts label{display:flex;align-items:center;gap:5px;font-size:13px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(18px + env(safe-area-inset-bottom,0px));background:var(--fg);color:var(--bg);padding:8px 14px;border-radius:8px;z-index:40;max-width:90%}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--ok);margin-right:6px}
+.dot.off{background:var(--muted)}
+pre.code{background:var(--panel2);border-radius:6px;padding:10px;overflow:auto;font-family:var(--mono);font-size:12px;margin:8px 0}
+.idlist{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.idpill{display:inline-flex;align-items:center;gap:6px;background:var(--panel2);border:1px solid var(--line);border-radius:99px;padding:3px 10px;font-family:var(--mono);font-size:12px}
+.idpill button{background:none;border:0;color:var(--muted);padding:0 2px;font-size:14px;line-height:1}
+.idpill button:hover{color:var(--bad)}
+.linkbtn{background:none;border:0;color:var(--accent);padding:0;text-decoration:underline;font-size:12.5px}
+@media (prefers-reduced-motion:no-preference){.inc:not(.done){animation:pulse 1.6s ease-out 1}@keyframes pulse{from{box-shadow:0 0 0 0 var(--bad)}to{box-shadow:0 0 0 10px transparent}}}
+</style>
+
+<div class="wrap">
+  <div class="bar">
+    <div><h1>Agent Control Room</h1><div class="sub" id="sub">Agents, people, departments, connectors and loop protection in one place.</div></div>
+    <div class="ctl">
+      <label>View as<select class="sel" id="role"></select></label>
+      <label>Permission role<select class="sel" id="actrole"></select></label>
+      <div><div class="small muted" style="margin-bottom:3px">Log sources</div><div class="chips" id="srcchips"></div></div>
+    </div>
+  </div>
+  <div class="tabs" id="tabs" role="tablist"></div>
+  <div id="view"></div>
+</div>
+<aside class="sheet" id="sheet" hidden></aside>
+
+<script>
+(function(){
+'use strict';
+const $=(s,r=document)=>r.querySelector(s);
+function h(t,a,...c){const e=document.createElement(t);if(a)for(const[k,v]of Object.entries(a)){if(k==='class')e.className=v;else if(k.startsWith('on'))e.addEventListener(k.slice(2),v);else if(v===true)e.setAttribute(k,'');else if(v!==false&&v!=null)e.setAttribute(k,v)}for(const x of c.flat(Infinity))if(x!=null&&x!==false)e.append(x.nodeType?x:document.createTextNode(String(x)));return e}
+const fmt=(n)=>Number(n||0).toLocaleString('en');
+const usd=(n)=>'$'+Number(n||0).toLocaleString('en',{minimumFractionDigits:n<10&&n>0?2:0,maximumFractionDigits:2});
+const PRICE={'Claude Opus 5.5':30,'Claude Sonnet 5.5':9,'Claude Haiku 5.5':2,'GPT':10,'Copilot':10,'Gemini':7,'Hermes':3,'Other':8};
+const MODELS=Object.keys(PRICE);
+const KINDS=['agents','platforms','people','departments','connectors','sources','incidents','requests','alertRules'];
+const DEFAULT_COMMS={enabled:true,blockSelfTalk:true,stopAckLoops:true,maxPerRecipient:3,maxPerDomain:5,windowMin:10,botSpeedSec:8,botSpeedTurns:3,onTrip:'freeze',smsFee:0.02,emailFee:0.002,
+  owned:['sales@acmeops.com','support@acmeops.com','intake@acmeops.com','billing@acmeops.com','*@msgsndr.com','+15550101001','+15550101002'],
+  blockedSenders:['noreply@*','no-reply@*','donotreply@*','mailer-daemon@*','postmaster@*'],
+  ownedStormEnabled:true,maxOwnedMsgs:6,ownedWindowMin:10,ownedBotSpeedSec:8,ownedBotSpeedTurns:3,maxOwnedCostUsd:1.00};
+const NEW_OWNED_AGG=()=>({recent:[],agents:[],agentIds:[],addresses:[],fastStreak:0,lastTs:0,lastAgent:'',spentUsd:0,tokens:0,frozen:false,reason:'',trippedAt:0,blockedCount:0,frozenThreadKeys:[]});
+const S={audit:{},requests:{},alertRules:{},pol:{mode:'monitor',hourlyRate:45},roleMatrix:null,agents:{},platforms:{},people:{},departments:{},connectors:{},sources:{},incidents:{},cfg:{sameCall:5,maxCalls:20,maxRetries:3,onTrip:'stop',backoff:true},
+  comms:JSON.parse(JSON.stringify(DEFAULT_COMMS)),threads:{},ownedAgg:NEW_OWNED_AGG(),commsStats:{checked:0,selfBlocked:0,ackStopped:0,pingPongTrips:0,blockedMsgs:0,savedUsd:0,ownedStormTrips:0},
+  logs:[],runs:{},stats:{agent:{},person:{},dept:{},platform:{}},tab:'console',role:'all',actingRole:'',src:{demo:true,live:true},canWrite:true,db:null,local:false,filter:{agent:'',level:'all',platform:''},seq:0,sessionStart:Date.now(),loops:0};
+const TABS=[['console','Live console'],['comms','Comms & ping-pong'],['agents','Agents'],['platforms','AI platforms'],['people','People & access'],['departments','Departments & policies'],['connectors','Connectors & vault'],['approvals','Approvals & alerts'],['cost','Cost & outcomes'],['audit','Audit trail'],['sources','Log sources']];
+
+/* ---------- helpers ---------- */
+const list=(k)=>Object.values(S[k]);
+const vis=(dept)=>S.role==='all'||S.role===dept;
+const can=(dept)=>S.canWrite&&(S.role==='all'||S.role===dept);
+const byName=(k,n)=>list(k).find(x=>x.name===n);
+function toast(m){const t=h('div',{class:'toast',role:'status'},m);document.body.append(t);setTimeout(()=>t.remove(),3200)}
+function dbErr(e){toast(e&&e.code==='invalid_argument'?'Not saved. You may have view-only access.':'Not saved: '+(e&&e.message||'unavailable'))}
+const timeStr=(t)=>new Date(t).toLocaleTimeString([], {hour12:false});
+function afterHours(dept,t){const d=S.departments&&byName('departments',dept);if(!d||d.alwaysOn)return false;const dt=new Date(t);const day=dt.getDay();if(d.days==='Mon-Fri'&&(day===0||day===6))return true;const m=dt.getHours()*60+dt.getMinutes();const p=(s)=>{const[a,b]=(s||'0:0').split(':');return +a*60+ +b};return m<p(d.hoursStart||'08:00')||m>=p(d.hoursEnd||'18:00')}
+const permanent=(e)=>/403|401|permission|forbidden|invalid|400|not found|404|denied/i.test(e||'');
+const transient=(e)=>/timeout|429|503|502|rate|unavailable/i.test(e||'');
+const ACTIONS=[['viewAll','See all departments'],['editOwn','Edit agents and people in own department'],['deployProd','Deploy agents to production'],['editPolicy','Edit department policies and budgets'],['editConnectors','Manage connectors and credentials'],['approve','Approve access requests'],['audit','View the audit trail']];
+const ROLE_LIST=['Employee','Dept head','Back office','Admin'];
+const ALL={viewAll:1,editOwn:1,deployProd:1,editPolicy:1,editConnectors:1,approve:1,audit:1};
+const DEF_MATRIX={'Employee':{},'Dept head':{editOwn:1,approve:1,audit:1},'Back office':{...ALL},'Admin':{...ALL}};
+S.roleMatrix=JSON.parse(JSON.stringify(DEF_MATRIX));
+const actingRole=()=>S.actingRole||(S.role==='all'?'Back office':'Dept head');
+const actor=()=>S.actingRole?S.actingRole+(S.role!=='all'?' ('+S.role+')':''):(S.role==='all'?'Back office':'Dept head ('+S.role+')');
+const perm=(a)=>!!(S.roleMatrix[actingRole()]||{})[a];
+const dim=new Date(new Date().getFullYear(),new Date().getMonth()+1,0).getDate(),dom=new Date().getDate();
+const proj=(x)=>x*dim/dom;
+const deptBase=(n)=>list('people').filter(p=>p.dept===n).reduce((a,p)=>a+(p.monthCost||0),0);
+const deptMonth=(n)=>deptBase(n)+((S.stats.dept[n]||{}).cost||0);
+const personMonth=(n)=>{const p=byName('people',n);return (p?p.monthCost||0:0)+((S.stats.person[n]||{}).cost||0)};
+const agentMonth=(a)=>(a.monthCost||0)+((S.stats.agent[a.id]||{}).cost||0);
+const SENSITIVE_FIELD_RE=/credential|secret|password|token|apikey|api_key|privatekey/i;
+const shortV=(v,redact)=>{if(redact)return v==null||v===''?'(empty)':'(redacted)';const t=typeof v==='string'?v:JSON.stringify(v);return t==null?'':(t.length>40?t.slice(0,39)+'…':t)};
+const diffOf=(o,n)=>!o?'created':(Object.keys(n).filter(k=>k!=='history'&&JSON.stringify(o[k])!==JSON.stringify(n[k])).map(k=>k+': '+shortV(o[k],SENSITIVE_FIELD_RE.test(k))+' → '+shortV(n[k],SENSITIVE_FIELD_RE.test(k))).join('; ')||'no changes');
+function evaluate(a,when){
+  if(!a)return '';
+  const d=byName('departments',a.dept);
+  if(d){
+    if(d.models&&d.models.length&&!d.models.includes(a.model))return 'model '+a.model+' is not allowed for '+a.dept;
+    const bad=(a.connectors||[]).find(c=>d.connectors&&d.connectors.length&&!d.connectors.includes(c));if(bad)return 'connector '+bad+' is not approved for '+a.dept;
+    if(!d.alwaysOn&&a.schedule!=='24/7'&&afterHours(a.dept,when||Date.now()))return 'outside the department work period';
+    if(d.hardCap&&d.budget&&deptMonth(d.name)>=d.budget)return 'department budget cap reached';
+  }
+  const p=byName('people',a.owner);if(p&&p.quota&&p.hardCap&&personMonth(p.name)>=p.quota)return 'owner quota reached';
+  return '';
+}
+let locT;function saveLocal(){if(!S.local)return;clearTimeout(locT);locT=setTimeout(()=>{try{const snap={cfg:S.cfg,pol:S.pol,comms:S.comms,roleMatrix:S.roleMatrix,audit:S.audit};for(const k of KINDS)snap[k]=S[k];localStorage.setItem('acr_local_v1',JSON.stringify(snap))}catch(e){}},250)}
+function audit(action,kind,target,detail,by){
+  const rec={at:Date.now(),who:by||actor(),action,kind,target:target||'',detail:detail||''};
+  const nid=S.db?S.db.collection('audit').doc().id:'x'+Date.now()+Math.random().toString(36).slice(2,5);
+  S.audit[nid]={id:nid,...rec};if(S.db)S.db.doc('audit/'+nid).set(rec).catch(()=>{});else saveLocal();
+}
+
+/* ---------- comms & cross-agent ping-pong guard ---------- */
+const COMMS_TOOLS=new Set(['send_email','send_sms','reply_ticket','send_outreach']);
+const PUBLIC_DOMAINS=new Set(['gmail.com','googlemail.com','yahoo.com','outlook.com','hotmail.com','icloud.com','aol.com','proton.me','protonmail.com','live.com','msn.com']);
+function normAddr(s){
+  const t=String(s||'').trim().toLowerCase();if(!t)return '';
+  if(!t.includes('@')&&!t.includes('*')&&/\d{7,}/.test(t.replace(/\D/g,'')))return '+'+t.replace(/\D/g,'');
+  return t;
+}
+function matchAddr(addr,pat){
+  const a=normAddr(addr),p=normAddr(pat);if(!a||!p)return false;
+  if(!p.includes('*'))return a===p;
+  const rx=new RegExp('^'+p.replace(/[.+?^${}()|[\]\\]/g,'\\$&').replace(/\*/g,'.*')+'$','i');
+  return rx.test(a);
+}
+const hitList=(addr,arr)=>addr?(arr||[]).find(p=>matchAddr(addr,p))||'':'';
+function isSms(tool,to,ch){return ch==='sms'||tool==='send_sms'||(normAddr(to).startsWith('+')&&!String(to||'').includes('@'))}
+function clusterInfo(to,contactId){
+  const n=normAddr(to);
+  if(contactId)return {key:'contact:'+String(contactId).toLowerCase(),label:'Contact '+contactId};
+  if(n.includes('@')){const dom=n.split('@')[1];if(dom&&!PUBLIC_DOMAINS.has(dom))return {key:'domain:'+dom,label:'*@'+dom}}
+  return {key:'addr:'+n,label:n||'unknown'};
+}
+const ACK_RE=/^(thanks!?|thank you[^?]*|got it[^?]*|will do[^?]*|sounds good[^?]*|received[^?]*|confirmed[^?]*|let me know if you need anything else[^?]*|have a (great|good|wonderful) (day|rest of your day|weekend)[^?]*|you('re| are) welcome[^?]*|out of (the )?office.*|automatic reply:.*|i am currently away.*)$/i;
+const AUTO_HDR_RE=/auto-submitted:\s*auto-|x-auto-response-suppress|precedence:\s*(bulk|junk|auto)|x-controlroom-agent/i;
+function isAckOnly(txt,hdr){
+  if(hdr&&AUTO_HDR_RE.test(hdr))return 'auto-reply header ('+hdr.split(':')[0].trim()+')';
+  const s=String(txt||'').trim();if(!s||s.includes('?'))return '';
+  if(s.length<=140&&ACK_RE.test(s))return 'no-intent sign-off / auto-reply ("'+(s.length>42?s.slice(0,41)+'…':s)+'")';
+  return '';
+}
+function checkCommsRule(args,tool){
+  const c=S.comms;if(!c||!c.enabled)return null;
+  const to=normAddr(args&&args.to),from=normAddr(args&&args.from);
+  if(!to&&!from)return null;
+  const ch=isSms(tool,to,args&&args.channel)?'sms':'email';
+  const ci=clusterInfo(to||from,args&&args.contactId);
+  const th=S.threads[ci.key];
+  if(S.ownedAgg&&S.ownedAgg.frozen&&(hitList(to,c.owned)||hitList(from,c.owned)))
+    return {block:true,flag:'owned storm frozen',layer:'Owned-identity storm breaker',why:'All automated outbound email/SMS touching your owned identities is frozen: '+S.ownedAgg.reason,ci,ch,to,from,self:true};
+  if(th&&th.frozen)return {block:true,flag:'frozen thread',layer:'Frozen cluster',why:'Thread '+th.label+' is frozen ('+th.reason+')',ci,ch,to,from};
+  if(c.blockSelfTalk){
+    const oTo=hitList(to,c.owned),oFr=hitList(from,c.owned);
+    if(oTo)return {block:true,flag:'self-talk',layer:'Owned identity list',why:'Self-talk blocked: outbound '+ch.toUpperCase()+' to owned identity '+to+' (matched '+oTo+')',ci,ch,to,from,self:true};
+    if(oFr&&from)return {block:true,flag:'self-talk',layer:'Owned identity list',why:'Self-talk blocked: triggered by owned identity '+from+' (matched '+oFr+')',ci,ch,to,from,self:true};
+  }
+  const bHit=hitList(to,c.blockedSenders)||hitList(from,c.blockedSenders);
+  if(bHit)return {block:true,flag:'bot blocklist',layer:'Bot blocklist',why:'Blocked automated/no-reply address (matched '+bHit+')',ci,ch,to,from,self:true};
+  if(c.stopAckLoops){
+    const ack=isAckOnly(args&&args.inbound,args&&args.headers);
+    if(ack)return {block:true,flag:'ack stopped',layer:'Thank-you tennis filter',why:'Reply suppressed on '+ack,ci,ch,to,from,ack:true};
+  }
+  return {block:false,ci,ch,to,from};
+}
+function detectComms(ev){
+  const c=S.comms;if(!c||!c.enabled)return;
+  const isComms=COMMS_TOOLS.has(ev.tool)||!!(ev.args&&(ev.args.to||ev.args.channel==='sms'||ev.args.channel==='email'));
+  if(!isComms||!(ev.args&&(ev.args.to||ev.args.from)))return;
+  S.commsStats.checked++;
+  const ch=isSms(ev.tool,ev.args.to,ev.args.channel)?'sms':'email';
+  const fee=+(ch==='sms'?c.smsFee||0.02:c.emailFee||0.002);
+  const estSaved=(ev.cost||0.03)+fee;
+  const pre=checkCommsRule(ev.args,ev.tool);
+  if(!pre)return;
+  trackOwnedStorm(ev,pre.to,pre.from,ch,pre.block?0:+(ev.cost+fee).toFixed(4));
+  if(pre.block){
+    if(c.onTrip!=='warn'){ev.status='blocked';ev.error=pre.why;ev.tokens=0;ev.cost=0;S.commsStats.blockedMsgs++;S.commsStats.savedUsd+=estSaved}
+    ev.flags.push(pre.flag);
+    if(pre.self)S.commsStats.selfBlocked++;
+    if(pre.ack)S.commsStats.ackStopped++;
+    if(S.threads[pre.ci.key])S.threads[pre.ci.key].blockedCount=(S.threads[pre.ci.key].blockedCount||0)+1;
+    if(S.tab==='comms')paintCommsLive();
+    return;
+  }
+  ev.cost=+(ev.cost+fee).toFixed(4);
+  const now=ev.ts||Date.now(),win=(c.windowMin||10)*60000;
+  const th=S.threads[pre.ci.key]||(S.threads[pre.ci.key]={key:pre.ci.key,label:pre.ci.label,frozen:false,reason:'',trippedAt:0,recent:[],addresses:[],agents:[],agentIds:[],fastStreak:0,lastTs:0,lastAgent:'',fastestSec:null,spentUsd:0,tokens:0,blockedCount:0});
+  th.recent=th.recent.filter(x=>now-x.ts<=win);
+  let repSec=ev.args.replySec!=null?+ev.args.replySec:null;
+  if(repSec==null&&th.lastTs&&now>=th.lastTs&&(now-th.lastTs)<=30000&&th.lastAgent&&th.lastAgent!==ev.agent)repSec=+((now-th.lastTs)/1000).toFixed(1);
+  if(repSec!=null){
+    if(th.fastestSec==null||repSec<th.fastestSec)th.fastestSec=repSec;
+    th.fastStreak=repSec<=(c.botSpeedSec||8)?th.fastStreak+1:0;
+  }
+  th.lastTs=now;th.lastAgent=ev.agent;
+  if(pre.to&&!th.addresses.includes(pre.to))th.addresses.push(pre.to);
+  if(pre.from&&!th.addresses.includes(pre.from))th.addresses.push(pre.from);
+  if(ev.agent&&!th.agents.includes(ev.agent))th.agents.push(ev.agent);
+  if(ev.agentId&&ev.agentId!=='?'&&!th.agentIds.includes(ev.agentId))th.agentIds.push(ev.agentId);
+  th.recent.push({ts:now,to:pre.to,from:pre.from,ch,agent:ev.agent});
+  th.spentUsd+=ev.cost;th.tokens+=ev.tokens||0;
+  const addrCount=pre.to?th.recent.filter(x=>x.to===pre.to).length:0;
+  let why='';
+  if(th.fastStreak>=(c.botSpeedTurns||3))why='Bot-speed ping-pong: '+th.fastStreak+' consecutive replies under '+c.botSpeedSec+'s across '+th.addresses.length+' address(es) ('+th.addresses.slice(0,4).join(', ')+')';
+  else if(addrCount>(c.maxPerRecipient||3))why='Recipient velocity fuse: '+addrCount+' outbound messages to '+pre.to+' in '+c.windowMin+'m (limit '+c.maxPerRecipient+')';
+  else if(th.recent.length>(c.maxPerDomain||5))why='Cross-email/SMS storm on '+th.label+': '+th.recent.length+' messages across '+th.addresses.length+' addresses ('+th.addresses.slice(0,4).join(', ')+') in '+c.windowMin+'m';
+  if(!why)return;
+  ev.flags.push('ping-pong');
+  S.commsStats.pingPongTrips++;S.loops++;
+  if(c.onTrip!=='warn'){
+    th.frozen=true;th.reason=why;th.trippedAt=now;th.blockedCount++;
+    th.spentUsd=Math.max(0,th.spentUsd-ev.cost);th.tokens=Math.max(0,th.tokens-(ev.tokens||0));
+    ev.status='blocked';ev.error='comms guard: '+why;ev.tokens=0;ev.cost=0;
+    S.commsStats.blockedMsgs++;S.commsStats.savedUsd+=estSaved;
+  }
+  const inc={at:Date.now(),kind:'comms',clusterKey:th.key,agentId:ev.agentId,agent:th.agents.join(' ↔ ')||ev.agent,dept:ev.dept,runId:ev.runId,reason:why,call:ev.tool+'('+shortArgs(ev.args)+')',calls:th.recent.length,cost:+th.spentUsd.toFixed(4),tokens:th.tokens,retryClass:'comms',action:c.onTrip==='halt'?'stop':c.onTrip==='freeze'?'freeze':'warn',status:'open'};
+  saveDoc('incidents',null,inc,true,'System (comms guard)');
+  if(c.onTrip==='halt'){for(const aid of th.agentIds){const ag=S.agents[aid];if(ag&&ag.status!=='halted')saveDoc('agents',ag.id,{...strip(ag),status:'halted',haltReason:why},true,'System (comms guard)')}}
+  paintConsole();paintTabs();if(S.tab==='comms')paintCommsLive();
+}
+function unfreezeThread(key){
+  const th=S.threads[key];if(!th)return;
+  th.frozen=false;th.reason='';th.recent=[];th.fastStreak=0;
+  audit('unfroze','comms',th.label,'Cleared frozen thread and reset velocity window');
+  list('incidents').filter(i=>i.clusterKey===key&&i.status!=='resolved').forEach(i=>saveDoc('incidents',i.id,{...strip(i),status:'resolved'},true));
+  paintTabs();render();toast('Unfroze '+th.label);
+}
+
+/* ---------- owned-identity storm breaker ----------
+   Tracks ALL traffic touching any address/number on S.comms.owned as one combined
+   group, independent of the per-contactId/per-domain clustering above. Four genuinely
+   distinct owned identities (different numbers, different domains) would never share
+   a clusterInfo() bucket, so without this they'd never be counted together. Always
+   hard-stops (freeze + halt every involved agent) regardless of the general
+   comms.onTrip setting - this one rule is intentionally not tunable to "warn only". */
+function trackOwnedStorm(ev,to,from,ch,realCost){
+  const c=S.comms;const agg=S.ownedAgg;
+  if(!agg||!c.ownedStormEnabled||agg.frozen)return;
+  if(!hitList(to,c.owned)&&!hitList(from,c.owned))return;
+  const now=ev.ts||Date.now(),win=(c.ownedWindowMin||10)*60000;
+  agg.recent=agg.recent.filter(x=>now-x.ts<=win);
+  let repSec=ev.args&&ev.args.replySec!=null?+ev.args.replySec:null;
+  if(repSec==null&&agg.lastTs&&now>=agg.lastTs&&(now-agg.lastTs)<=30000&&agg.lastAgent&&agg.lastAgent!==ev.agent)repSec=+((now-agg.lastTs)/1000).toFixed(1);
+  if(repSec!=null)agg.fastStreak=repSec<=(c.ownedBotSpeedSec||8)?agg.fastStreak+1:0;
+  agg.lastTs=now;agg.lastAgent=ev.agent;
+  if(to&&!agg.addresses.includes(to))agg.addresses.push(to);
+  if(from&&!agg.addresses.includes(from))agg.addresses.push(from);
+  if(ev.agent&&!agg.agents.includes(ev.agent))agg.agents.push(ev.agent);
+  if(ev.agentId&&ev.agentId!=='?'&&!agg.agentIds.includes(ev.agentId))agg.agentIds.push(ev.agentId);
+  agg.recent.push({ts:now,to,from,ch,agent:ev.agent});
+  agg.spentUsd+=realCost||0;agg.tokens+=ev.tokens||0;
+  let why='';
+  if(agg.recent.length>=(c.maxOwnedMsgs||6)&&agg.fastStreak>=(c.ownedBotSpeedTurns||3))
+    why='Owned-identity storm: '+agg.recent.length+' messages across '+agg.addresses.length+' owned addresses ('+agg.addresses.slice(0,4).join(', ')+') with '+agg.fastStreak+' consecutive replies under '+(c.ownedBotSpeedSec||8)+'s';
+  else if(agg.spentUsd>=(c.maxOwnedCostUsd||1))
+    why='Owned-identity storm: combined spend reached '+usd(agg.spentUsd)+' across '+agg.addresses.length+' owned addresses in '+(c.ownedWindowMin||10)+'m';
+  if(!why)return;
+  tripOwnedStorm(ev,agg,why);
+}
+function tripOwnedStorm(ev,agg,why){
+  agg.frozen=true;agg.reason=why;agg.trippedAt=Date.now();
+  const frozenKeys=[];
+  for(const[key,th]of Object.entries(S.threads)){if((th.addresses||[]).some(a=>hitList(a,S.comms.owned))){th.frozen=true;th.frozenByOwnedStorm=true;frozenKeys.push(key)}}
+  agg.frozenThreadKeys=frozenKeys;
+  ev.flags.push('owned-storm');
+  S.commsStats.ownedStormTrips++;S.loops++;
+  for(const aid of agg.agentIds){const ag=S.agents[aid];if(ag&&ag.status!=='halted')saveDoc('agents',ag.id,{...strip(ag),status:'halted',haltReason:why},true,'System (owned-storm guard)')}
+  const inc={at:Date.now(),kind:'ownedStorm',clusterKey:'owned-all',agentId:ev.agentId,agent:agg.agents.join(' ↔ ')||ev.agent,dept:ev.dept,runId:ev.runId,reason:why,call:ev.tool+'('+shortArgs(ev.args)+')',calls:agg.recent.length,cost:+agg.spentUsd.toFixed(4),tokens:agg.tokens,retryClass:'ownedStorm',action:'stop',status:'open'};
+  saveDoc('incidents',null,inc,true,'System (owned-storm guard)');
+  paintConsole();paintTabs();if(S.tab==='comms')paintCommsLive();
+}
+function unfreezeOwnedStorm(){
+  const agg=S.ownedAgg;if(!agg||!agg.frozen)return;
+  for(const key of agg.frozenThreadKeys||[]){const th=S.threads[key];if(th&&th.frozenByOwnedStorm){th.frozen=false;th.frozenByOwnedStorm=false;th.reason='';th.recent=[];th.fastStreak=0}}
+  S.ownedAgg=NEW_OWNED_AGG();
+  audit('unfroze','comms','Owned-identity storm breaker','Cleared owned-identity storm freeze. Agents halted by this rule stay halted until resumed from the Agents tab.');
+  list('incidents').filter(i=>i.kind==='ownedStorm'&&i.status!=='resolved').forEach(i=>saveDoc('incidents',i.id,{...strip(i),status:'resolved'},true));
+  paintTabs();render();toast('Unfroze owned-identity storm breaker');
+}
+
+/* ---------- stats + ingest ---------- */
+function bump(map,key,ev){const s=map[key]||(map[key]={calls:0,errors:0,blocked:0,tokens:0,cost:0,loops:0,last:0});s.calls++;if(ev.status==='error')s.errors++;if(ev.status==='blocked')s.blocked++;s.tokens+=ev.tokens||0;s.cost+=ev.cost||0;s.last=ev.ts;return s}
+function resolveAgent(ev){return S.agents[ev.agentId]||byName('agents',ev.agent)||null}
+function ingest(raw,detect,source){
+  const ag=resolveAgent(raw);
+  const ev={id:++S.seq,ts:raw.ts||Date.now(),agentId:ag?ag.id:(raw.agentId||'?'),agent:ag?ag.name:(raw.agent||raw.agentId||'unknown'),vt:raw.vt||0,dept:ag?ag.dept:(raw.dept||'—'),platform:ag?(ag.platform||'Unassigned'):(raw.platform||'Unassigned'),owner:ag?ag.owner:'',runId:raw.runId||('r-'+(raw.agentId||'x')),tool:raw.tool||'call',args:raw.args||{},status:raw.status||'ok',error:raw.error||'',out:raw.out||'',tokens:+raw.tokens||0,cost:raw.cost!=null?+raw.cost:((+raw.tokens||0)/1e6*(PRICE[ag&&ag.model]||9)),source:source||raw.source||'live',flags:[]};
+  ev.vt=ev.vt||ev.ts;if(afterHours(ev.dept,ev.vt)&&!(ag&&ag.schedule==='24/7'))ev.flags.push('after hours');
+  {const why=evaluate(ag,ev.vt);if(why&&ev.status!=='blocked'){ev.violation=why;ev.flags.push('policy')}}
+  if(detect)detectComms(ev);
+  S.logs.unshift(ev);if(S.logs.length>500)S.logs.pop();
+  bump(S.stats.agent,ev.agentId,ev);if(ev.owner)bump(S.stats.person,ev.owner,ev);bump(S.stats.dept,ev.dept,ev);bump(S.stats.platform,ev.platform,ev);
+  if(detect)detectLoop(ev);
+  return ev;
+}
+
+/* ---------- loop detection ---------- */
+function detectLoop(ev){
+  if(ev.status==='blocked')return;
+  const g=S.cfg;const R=S.runs[ev.runId]||(S.runs[ev.runId]={calls:0,sig:'',same:0,out:'',stall:0,errs:0,tripped:false,cost:0,tokens:0,agentId:ev.agentId,first:ev.ts});
+  R.calls++;R.cost+=ev.cost;R.tokens+=ev.tokens;
+  const sig=ev.tool+'('+JSON.stringify(ev.args)+')';const out=ev.status+':'+(ev.error||ev.out);
+  if(sig===R.sig){R.same++;R.stall=out===R.out?R.stall+1:0;R.errs=ev.status==='error'?R.errs+1:0}
+  else{R.same=1;R.stall=0;R.errs=ev.status==='error'?1:0}
+  R.sig=sig;R.out=out;
+  if(R.tripped)return;
+  let why='';
+  if(ev.status==='error'&&permanent(ev.error)&&R.errs>=2)why='Retried a non-retryable error ('+ev.error+')';
+  else if(R.same>=g.sameCall&&R.stall>=g.sameCall-1)why='Same call made '+R.same+' times with an identical result, so no progress';
+  else if(R.errs>g.maxRetries)why='Retry limit of '+g.maxRetries+' exceeded';
+  else if(R.calls>g.maxCalls)why='Tool-call limit of '+g.maxCalls+' reached';
+  if(!why)return;
+  R.tripped=true;R.action=g.onTrip;ev.flags.push('loop');
+  S.loops++;S.stats.agent[ev.agentId]&&S.stats.agent[ev.agentId].loops++;
+  const ag=S.agents[ev.agentId];const dept=ag&&byName('departments',ag.dept);
+  const inc={at:Date.now(),agentId:ev.agentId,agent:ev.agent,dept:ev.dept,runId:ev.runId,reason:why,call:sig,calls:R.calls,cost:+R.cost.toFixed(4),tokens:R.tokens,retryClass:permanent(ev.error)?'permanent':transient(ev.error)?'transient':'unknown',action:g.onTrip,notify:dept&&dept.head||'',status:g.onTrip==='escalate'?'needs human':'open'};
+  saveDoc('incidents',null,inc,true,'System');
+  if(g.onTrip==='stop'&&ag)saveDoc('agents',ag.id,{...strip(ag),status:'halted',haltReason:why},true,'System (loop guard)');
+  paintConsole();paintTabs();
+}
+const strip=(o)=>{const c={...o};delete c.id;return c};
+
+/* ---------- persistence ---------- */
+async function saveDoc(kind,id,data,quiet,by){
+  const nid=id||(S.db?S.db.collection(kind).doc().id:'l'+Date.now()+Math.random().toString(36).slice(2,6));
+  const old=S[kind][nid];S[kind][nid]={id:nid,...data};
+  if(S.db){try{await S.db.doc(kind+'/'+nid).set(data)}catch(e){if(!quiet)dbErr(e);return null}}else saveLocal();
+  audit(old?'updated':'created',kind,data.name||data.agent||nid,diffOf(old,data),by);
+  return nid;
+}
+async function delDoc(kind,id){const nm=S[kind][id]&&S[kind][id].name;delete S[kind][id];audit('deleted',kind,nm||id,'');if(S.db){try{await S.db.doc(kind+'/'+id).delete()}catch(e){dbErr(e)}}else saveLocal()}
+let cfgT;function saveCfg(){clearTimeout(cfgT);cfgT=setTimeout(async()=>{if(S.db){try{await S.db.doc('config/loop').set({...S.cfg})}catch(e){dbErr(e)}}else saveLocal();audit('changed','config','Loop guard',JSON.stringify(S.cfg))},500)}
+let polT;function savePol(what){clearTimeout(polT);polT=setTimeout(async()=>{if(S.db){try{await S.db.doc('config/policy').set({...S.pol});await S.db.doc('config/roles').set({m:S.roleMatrix})}catch(e){dbErr(e)}}else saveLocal();audit('changed','config',what||'Policy settings','')},500)}
+let comT;function saveComms(what){clearTimeout(comT);comT=setTimeout(async()=>{if(S.db){try{await S.db.doc('config/comms').set({...S.comms})}catch(e){dbErr(e)}}else saveLocal();audit('changed','config',what||'Comms & ping-pong guard','')},400)}
+
+/* ---------- entity specs ---------- */
+const deptNames=()=>list('departments').map(d=>d.name);
+const SPEC={
+agents:{label:'Agent',defaults:{status:'draft',env:'dev',version:'0.1.0',schedule:'dept hours',model:'Claude Sonnet 5.5',connectors:[],history:[]},fields:[
+ ['name','Name','text'],['platform','AI platform','select',()=>['',...list('platforms').map(p=>p.name)]],['dept','Department','select',deptNames],['owner','Owner','select',()=>['',...list('people').map(p=>p.name)]],['model','Model','select',()=>MODELS],
+ ['env','Environment','select',()=>['dev','staging','prod']],['version','Version','text'],['status','Status','select',()=>['draft','active','paused','halted']],
+ ['schedule','Work period','select',()=>['dept hours','24/7']],['connectors','Connectors','multi',()=>list('connectors').map(c=>c.name)],['monthRuns','Runs this month','number'],['monthCost','Cost this month ($)','number'],['minutesSaved','Minutes saved per run','number'],['overrideRate','Human override rate (%)','number'],['successRate','Success rate (%)','number'],['notes','Notes','area']]},
+platforms:{label:'Platform',defaults:{status:'connected',kind:'Assistant / agent builder',connection:'Live ingest'},fields:[
+ ['name','Name','text'],['vendor','Vendor','text'],['kind','Type','select',()=>['Assistant / agent builder','Model API','Open-source agent','Workflow automation','Custom / in-house']],['connection','How logs arrive','select',()=>['Live ingest','Admin / usage API','Webhook','Import file','Not connected yet']],['status','Status','select',()=>['connected','pilot','planned','blocked']],['notes','Notes','area']]},
+people:{label:'Person',defaults:{role:'Employee',quota:300,models:['Claude Sonnet 5.5','Claude Haiku 5.5']},fields:[
+ ['name','Name','text'],['dept','Department','select',deptNames],['role','Role','select',()=>['Employee','Dept head','Back office','Admin']],
+ ['quota','Monthly quota ($)','number'],['hardCap','Block their agents at 100% of quota','bool'],['models','Allowed models','multi',()=>MODELS],['monthCost','Month to date ($)','number']]},
+departments:{label:'Department',defaults:{budget:2000,hoursStart:'08:00',hoursEnd:'18:00',days:'Mon-Fri',alwaysOn:false,models:MODELS.slice(1),connectors:[]},fields:[
+ ['name','Name','text'],['head','Department head','select',()=>['',...list('people').map(p=>p.name)]],['budget','Monthly budget ($)','number'],
+ ['models','Allowed models','multi',()=>MODELS],['connectors','Allowed connectors','multi',()=>list('connectors').map(c=>c.name)],
+ ['hoursStart','Work period starts','text'],['hoursEnd','Work period ends','text'],['days','Days','select',()=>['Mon-Fri','Every day']],['alwaysOn','Runs 24/7 (no work period limit)','bool'],['hardCap','Block agents automatically at 100% of budget','bool'],['costCenter','Cost center / client code','text']]},
+connectors:{label:'Connector',defaults:{status:'connected',needsApproval:false},fields:[
+ ['name','Name','text'],['scopes','Scopes granted','text'],['status','Status','select',()=>['connected','pending','blocked']],['needsApproval','Needs approval per agent','bool'],['owner','Credential owner','select',()=>['',...list('people').map(p=>p.name)]],['credentialRef','Secret reference (a vault name, never the key itself)','text'],['lastRotated','Last rotated (YYYY-MM-DD)','text'],['rotateEveryDays','Rotate every (days)','number'],['notes','Notes','area']]},
+requests:{label:'Request',defaults:{type:'Connector access',status:'pending'},fields:[
+ ['type','Type','select',()=>['Connector access','Model access','Budget increase','Deploy to production']],['dept','Department','select',deptNames],['requester','Requested by','select',()=>['',...list('people').map(p=>p.name)]],['item','What (connector, model, agent name, or amount in $)','text'],['reason','Reason','area'],['status','Status','select',()=>['pending','approved','denied']]]},
+alertRules:{label:'Alert rule',defaults:{enabled:true,channel:'In-app'},fields:[
+ ['name','Name','text'],['trigger','Trigger','select',()=>['Loop caught','Comms ping-pong','Owned-identity storm','Budget at 80%','Policy block','After-hours call','Credential rotation due']],['channel','Channel','select',()=>['In-app','Slack','Email']],['target','Send to (channel or address)','text'],['enabled','Enabled','bool']]},
+sources:{label:'Log source',defaults:{type:'Webhook / gateway',status:'planned'},fields:[
+ ['name','Name','text'],['type','Type','select',()=>['Claude Console / Admin API','GoHighLevel','Make','Webhook / gateway','File upload','Live ingest','Demo']],['endpoint','Endpoint or notes','text'],['status','Status','select',()=>['active','planned','error']]]}
+};
+function openEditor(kind,id){
+  const spec=SPEC[kind];const cur=id?JSON.parse(JSON.stringify(S[kind][id])):JSON.parse(JSON.stringify(spec.defaults));
+  if(kind==='agents'&&!id&&S.role!=='all')cur.dept=S.role;
+  const form=h('form',{id:'ed-form'});const get={};
+  for(const[k,label,type,opts]of spec.fields){
+    let ctl;
+    if(type==='select'){const o=opts();ctl=h('select',{class:'sel',id:'f-'+k},o.map(v=>h('option',{value:v,selected:cur[k]===v},v||'(none)')));get[k]=()=>ctl.value}
+    else if(type==='multi'){const o=opts();const sel=new Set(cur[k]||[]);ctl=h('div',{class:'opts'},o.map(v=>{const cb=h('input',{type:'checkbox',checked:sel.has(v)});cb.addEventListener('change',()=>cb.checked?sel.add(v):sel.delete(v));return h('label',{},cb,v)}));get[k]=()=>[...sel]}
+    else if(type==='bool'){const cb=h('input',{type:'checkbox',id:'f-'+k,checked:!!cur[k]});ctl=h('div',{},cb);get[k]=()=>cb.checked}
+    else if(type==='area'){ctl=h('textarea',{class:'inp',rows:3,id:'f-'+k});ctl.value=cur[k]||'';get[k]=()=>ctl.value}
+    else{ctl=h('input',{class:'inp',id:'f-'+k,type:type==='number'?'number':'text',value:cur[k]!=null?cur[k]:''});get[k]=()=>type==='number'?+ctl.value:ctl.value.trim()}
+    form.append(h('div',{class:'f'},h('span',{},label),ctl));
+  }
+  const save=h('button',{class:'btn pri',type:'submit',form:'ed-form'},id?'Save changes':'Add '+spec.label.toLowerCase());
+  form.addEventListener('submit',async(ev)=>{ev.preventDefault();const data={...cur};for(const[k]of spec.fields)data[k]=get[k]();delete data.id;
+    if(!data.name){toast('Name is required');return}
+    if(kind==='agents'&&!id){data.history=[{at:Date.now(),v:data.version,env:data.env}]}
+    save.disabled=true;const r=await saveDoc(kind,id,data);if(r){closeSheet();render();toast(id?'Saved':'Added')}else save.disabled=false});
+  const actions=h('div',{class:'row'},save,h('button',{class:'btn',type:'button',onclick:closeSheet},'Cancel'));
+  if(id){let armed=false;const del=h('button',{class:'btn danger',type:'button',style:'margin-left:auto'},'Delete');del.addEventListener('click',async()=>{if(!armed){armed=true;del.textContent='Click again to delete';setTimeout(()=>{armed=false;del.textContent='Delete'},3000);return}await delDoc(kind,id);closeSheet();render();toast('Deleted')});actions.append(del)}
+  const sh=$('#sheet');sh.replaceChildren(h('h2',{},(id?'Edit ':'New ')+spec.label.toLowerCase()),form,actions);form.append(h('div',{style:'height:4px'}));sh.hidden=false;
+  const first=sh.querySelector('input,select');first&&first.focus();
+}
+function closeSheet(){$('#sheet').hidden=true}
+document.addEventListener('keydown',(e)=>{if(e.key==='Escape')closeSheet()});
+
+/* ---------- views ---------- */
+function paintTabs(){
+  const t=$('#tabs');const open=list('incidents').filter(i=>i.status!=='resolved'&&vis(i.dept)).length;const pend=list('requests').filter(r=>r.status==='pending'&&vis(r.dept)).length;
+  const frz=Object.values(S.threads).filter(x=>x.frozen).length+(S.ownedAgg&&S.ownedAgg.frozen?1:0);
+  t.replaceChildren(...TABS.map(([k,l])=>h('button',{role:'tab','aria-selected':String(S.tab===k),onclick:()=>{S.tab=k;try{history.replaceState(null,'','#'+k)}catch(e){}paintTabs();render()}},l,k==='console'&&open?h('span',{class:'badge'},open):null,k==='comms'&&frz?h('span',{class:'badge'},frz):null,k==='approvals'&&pend?h('span',{class:'badge'},pend):null)));
+}
+function paintChips(){
+  const c=$('#srcchips');const all=S.src.demo&&S.src.live;
+  c.replaceChildren(h('button',{class:'chip','aria-pressed':String(all),onclick:()=>{const v=!all;S.src.demo=v;S.src.live=v;paintChips();render()}},'All'),
+   h('button',{class:'chip','aria-pressed':String(S.src.demo),onclick:()=>{S.src.demo=!S.src.demo;paintChips();render()}},'Demo stream'),
+   h('button',{class:'chip','aria-pressed':String(S.src.live),onclick:()=>{S.src.live=!S.src.live;paintChips();render()}},'Live ingest'));
+}
+function paintRole(){
+  const r=$('#role');const opts=[['all','Back office (all departments)'],...deptNames().map(d=>[d,'Dept head: '+d])];
+  r.replaceChildren(...opts.map(([v,l])=>h('option',{value:v,selected:S.role===v},l)));
+  r.onchange=()=>{S.role=r.value;paintTabs();render()};
+  const ar=$('#actrole');if(ar){
+    const aropts=[['','Auto (from View as)'],...ROLE_LIST.map(x=>[x,x])];
+    ar.replaceChildren(...aropts.map(([v,l])=>h('option',{value:v,selected:S.actingRole===v},l)));
+    ar.onchange=()=>{S.actingRole=ar.value;paintTabs();render()};
+  }
+}
+const pill=(t,c)=>h('span',{class:'pill '+(c||'')},t);
+const stCls=(s)=>({active:'ok',connected:'ok',prod:'ok',paused:'warn',pending:'warn',staging:'warn',halted:'bad',blocked:'bad',error:'bad'}[s]||'');
+function toolbar(kind,extra){const ok=S.canWrite&&(kind==='agents'||kind==='people'?perm('editOwn'):kind==='departments'?perm('editPolicy'):kind==='connectors'?perm('editConnectors'):(kind==='requests'||kind==='alertRules')?true:S.role==='all');return h('div',{class:'tool'},h('div',{class:'muted small'},extra||''),ok?h('button',{class:'btn pri',onclick:()=>openEditor(kind)},'+ New '+SPEC[kind].label.toLowerCase()):null)}
+function empty(msg){return h('div',{class:'empty'},msg)}
+
+/* console */
+function kpiBox(l,v,bad){return h('div',{class:'kpi'+(bad?' bad':'')},h('div',{class:'l'},l),h('div',{class:'v'},v))}
+function visibleLogs(){return S.logs.filter(e=>vis(e.dept)&&(e.source==='demo'?S.src.demo:S.src.live||e.source==='upload'))}
+function paintConsole(){
+  if(S.tab!=='console')return;
+  const k=$('#kpis'),inc=$('#incs'),lg=$('#logs');if(!k)return;
+  const logs=visibleLogs();const now=Date.now();
+  const perMin=logs.filter(e=>now-e.ts<60000).length;const last=logs.slice(0,100);const errs=last.filter(e=>e.status==='error').length;
+  const runsOpen=new Set(logs.filter(e=>now-e.ts<8000).map(e=>e.runId)).size;
+  const spend=logs.reduce((a,e)=>a+e.cost,0);const blocked=logs.filter(e=>e.status==='blocked').length;
+  const open=list('incidents').filter(i=>i.status!=='resolved'&&vis(i.dept));
+  k.replaceChildren(kpiBox('Calls per minute',perMin),kpiBox('Error rate (last 100)',last.length?Math.round(errs/last.length*100)+'%':'0%',last.length&&errs/last.length>.25),kpiBox('Runs active now',runsOpen),kpiBox('Loops caught',list('incidents').filter(i=>vis(i.dept)).length),kpiBox('Blocked by policy',blocked),kpiBox('Spend this session',usd(spend)));
+  const incs=list('incidents').filter(i=>vis(i.dept)).sort((a,b)=>b.at-a.at).slice(0,6);
+  inc.replaceChildren(...incs.map(incCard));
+  const f=S.filter;
+  const rows=logs.filter(e=>(!f.agent||e.agentId===f.agent)&&(!f.platform||e.platform===f.platform)&&(f.level==='all'||(f.level==='flagged'?e.flags.length:e.status===f.level))).slice(0,120);
+  const tb=$('#logs tbody');
+  tb.replaceChildren(...rows.map(e=>h('tr',{class:e.status+((e.flags.includes('loop')||e.flags.includes('ping-pong'))?' flag':''),style:'cursor:pointer',title:'Open this run',onclick:()=>openRun(e.runId)},h('td',{},timeStr(e.ts)),h('td',{},e.agent),h('td',{},e.platform),h('td',{},e.tool+'('+shortArgs(e.args)+')'),h('td',{},e.status==='ok'?'ok':e.status+(e.error?': '+e.error:'')),h('td',{class:'r'},fmt(e.tokens)),h('td',{class:'r'},usd(e.cost)),h('td',{},e.flags.join(', ')))));
+  $('#logempty').hidden=rows.length>0;
+}
+const shortArgs=(a)=>{const s=JSON.stringify(a||{});return s.length>46?s.slice(0,45)+'…':s};
+function incCard(i){
+  const done=i.status==='resolved';const ag=S.agents[i.agentId];const isComms=i.kind==='comms';const isOwned=i.kind==='ownedStorm';
+  const th=isComms&&i.clusterKey?S.threads[i.clusterKey]:null;
+  const fix=isOwned?'All automated outbound email/SMS touching your owned identities is frozen, and every agent that touched one has been halted, until unfrozen by a human.':isComms?'All automated outbound email/SMS to this contact/domain is frozen until unfrozen by a human.':i.retryClass==='permanent'?'This error will not clear by retrying. Fix the permission or arguments first.':i.retryClass==='transient'?'Transient error. Retry with exponential backoff and a hard cap, then stop.':'Check the tool and its inputs before the agent runs again.';
+  const act=isOwned?'Frozen + agents halted':i.action==='freeze'?'Thread frozen':i.action==='stop'?'Agent stopped':i.action==='escalate'?'Escalated'+(i.notify?' to '+i.notify:' to a human'):'Warning only';
+  const head=done?'Resolved: ':(isOwned?'Owned-identity storm — hard-stopped: ':isComms?'Comms storm caught: ':'Loop caught: ');
+  const haltedAgents=isOwned?list('agents').filter(a=>a.status==='halted'&&a.haltReason===i.reason):[];
+  return h('div',{class:'inc'+(done?' done':'')},
+    h('div',{class:'row',style:'justify-content:space-between'},h('strong',{},head+i.agent),h('span',{class:'row'},pill(act,done?'':'bad'),pill(i.dept),h('span',{class:'muted small'},timeStr(i.at)))),
+    h('div',{style:'margin:6px 0'},i.reason+'.'),
+    h('div',{class:'mono'},i.call),
+    h('div',{class:'small muted',style:'margin:6px 0'},i.calls+' messages/calls, '+fmt(i.tokens)+' tokens, '+usd(i.cost)+' spent before trip. '+fix),
+    h('div',{class:'row'},
+      !done&&isOwned&&S.ownedAgg&&S.ownedAgg.frozen&&S.canWrite?h('button',{class:'btn sm',onclick:unfreezeOwnedStorm},'Unfreeze owned-identity breaker'):null,
+      !done&&isOwned&&haltedAgents.length&&S.canWrite?h('button',{class:'btn sm',onclick:async()=>{for(const a of haltedAgents)await saveDoc('agents',a.id,{...strip(a),status:'active',haltReason:''});await saveDoc('incidents',i.id,{...strip(i),status:'resolved'});paintConsole();paintTabs();toast('Resumed '+haltedAgents.length+' halted agent'+(haltedAgents.length>1?'s':''))}},'Resume all halted agents ('+haltedAgents.length+')'):null,
+      !done&&!isOwned&&th&&th.frozen&&S.canWrite?h('button',{class:'btn sm',onclick:()=>unfreezeThread(i.clusterKey)},'Unfreeze thread'):null,
+      !done&&!isOwned&&ag&&S.canWrite&&ag.status==='halted'?h('button',{class:'btn sm',onclick:async()=>{await saveDoc('agents',ag.id,{...strip(ag),status:'active',haltReason:''});await saveDoc('incidents',i.id,{...strip(i),status:'resolved'});paintConsole();paintTabs();toast('Agent resumed')}},'Resume agent'):null,
+      (isComms||isOwned)?h('button',{class:'btn sm',onclick:()=>{S.tab='comms';paintTabs();render()}},'Open comms guard'):h('button',{class:'btn sm',onclick:()=>openRun(i.runId)},'View run'),
+      done?null:h('button',{class:'btn sm',onclick:async()=>{if(th&&th.frozen){th.frozen=false;th.recent=[];th.fastStreak=0}await saveDoc('incidents',i.id,{...strip(i),status:'resolved'});paintConsole();paintTabs()},},'Mark resolved')));
+}
+function guardPanel(){
+  const g=S.cfg;const num=(k,min,max)=>{const i=h('input',{class:'inp',type:'number',min,max,value:g[k],id:'g-'+k});i.addEventListener('change',()=>{g[k]=Math.max(min,Math.min(max,+i.value||min));i.value=g[k];saveCfg()});return i};
+  const sel=h('select',{class:'sel',id:'g-on'},[['stop','Stop the agent'],['escalate','Stop and escalate to dept head'],['warn','Warn only']].map(([v,l])=>h('option',{value:v,selected:g.onTrip===v},l)));sel.addEventListener('change',()=>{g.onTrip=sel.value;saveCfg()});
+  const bo=h('input',{type:'checkbox',checked:!!g.backoff,id:'g-bo'});bo.addEventListener('change',()=>{g.backoff=bo.checked;saveCfg()});
+  const n1=num('sameCall',2,20),n2=num('maxCalls',3,500),n3=num('maxRetries',0,10);const dis=!S.canWrite||S.role!=='all';[n1,n2,n3,sel,bo].forEach(x=>x.disabled=dis);
+  return h('details',{class:'card',style:'margin-bottom:14px'},h('summary',{},'Loop guard settings'),
+   h('p',{class:'small muted',style:'margin:6px 0 0'},'Applies to every agent. A run is judged by its repeated tool calls, their arguments and results, not by step count alone.'),
+   h('div',{class:'guard'},
+    h('fieldset',{},h('legend',{},'Detect'),h('div',{class:'small muted'},'Tracks tool, arguments and result for each call in a run.'),h('label',{},'Identical calls before flag',n1)),
+    h('fieldset',{},h('legend',{},'Limits'),h('div',{class:'small muted'},'Hard cap per run so cost cannot run away.'),h('label',{},'Max tool calls per run',n2)),
+    h('fieldset',{},h('legend',{},'Retry policy'),h('div',{class:'small muted'},'Permission and bad-argument errors are never retried. Transient errors get a capped retry.'),h('label',{},'Max retries',n3),h('label',{},'Exponential backoff',bo)),
+    h('fieldset',{},h('legend',{},'Progress'),h('div',{class:'small muted'},'The same call returning the same result again counts as no progress. A repeat that changes the result does not.')),
+    h('fieldset',{},h('legend',{},'Fallback'),h('div',{class:'small muted'},'What happens when a run trips a rule.'),h('label',{},'On trip',sel))));
+}
+function viewConsole(){
+  const v=h('div',{});
+  v.append(h('div',{class:'kpis',id:'kpis'}),h('div',{id:'incs'}),guardPanel());
+  const agents=list('agents').filter(a=>vis(a.dept));
+  const fp=h('select',{class:'sel',id:'fp'},h('option',{value:''},'All platforms'),list('platforms').map(p=>h('option',{value:p.name,selected:S.filter.platform===p.name},p.name)));fp.addEventListener('change',()=>{S.filter.platform=fp.value;paintConsole()});
+  const fa=h('select',{class:'sel',id:'fa'},h('option',{value:''},'All agents'),agents.map(a=>h('option',{value:a.id,selected:S.filter.agent===a.id},a.name)));fa.addEventListener('change',()=>{S.filter.agent=fa.value;paintConsole()});
+  const fl=h('select',{class:'sel',id:'fl'},[['all','All events'],['error','Errors'],['blocked','Blocked by policy'],['flagged','Flagged']].map(([x,l])=>h('option',{value:x,selected:S.filter.level===x},l)));fl.addEventListener('change',()=>{S.filter.level=fl.value;paintConsole()});
+  v.append(h('div',{class:'tool'},h('div',{class:'row'},h('span',{class:'dot'}),h('strong',{},'Live events'),h('span',{class:'muted small'},'newest first')),h('div',{class:'row'},fp,fa,fl,h('label',{class:'btn'},'Import logs',h('input',{type:'file',accept:'.json,.csv',hidden:true,onchange:importFile})))));
+  v.append(h('div',{class:'tw'},h('table',{class:'log',id:'logs'},h('thead',{},h('tr',{},['Time','Agent','Platform','Call','Result','Tokens','Cost','Flags'].map((x,i)=>h('th',{class:i>4&&i<7?'r':''},x)))),h('tbody',{}))),h('div',{class:'empty',id:'logempty',hidden:true},'No events yet. Turn on the Demo stream, or send events to Live ingest.'));
+  return v;
+}
+function importFile(e){
+  const f=e.target.files[0];if(!f)return;const rd=new FileReader();
+  rd.onload=()=>{try{let rows;if(/\.json$/i.test(f.name)){rows=JSON.parse(rd.result);if(!Array.isArray(rows))rows=rows.logs||rows.events||[]}else{const L=String(rd.result).trim().split(/\r?\n/);const hd=L.shift().split(',').map(s=>s.trim());rows=L.map(l=>{const c=l.split(',');const o={};hd.forEach((k,i)=>o[k]=c[i]);return o})}
+    rows.sort((a,b)=>new Date(a.ts)-new Date(b.ts));let n=0;for(const r of rows){if(typeof r.args==='string'){try{r.args=JSON.parse(r.args)}catch(x){r.args={v:r.args}}}r.ts=r.ts?new Date(r.ts).getTime():Date.now();ingest(r,true,'upload');n++}
+    toast('Imported '+n+' events');paintConsole()}catch(x){toast('Could not read that file. Use a JSON array or a CSV with headers.')}};
+  rd.readAsText(f);e.target.value='';
+}
+
+/* agents */
+function statLine(s){return s?fmt(s.calls)+' calls · '+s.errors+' errors · '+usd(s.cost):'No activity this session'}
+function bumpVersion(v){const p=String(v||'0.0.0').split('.').map(Number);p[2]=(p[2]||0)+1;return p.join('.')}
+function viewAgents(){
+  const as=list('agents').filter(a=>vis(a.dept));const v=h('div',{});
+  v.append(toolbar('agents',as.length+' agents'+(S.role!=='all'?' in '+S.role:'')));
+  if(!as.length){v.append(empty('No agents yet. Add one to track its owner, model, connectors, work period and deployment.'));return v}
+  v.append(h('div',{class:'grid'},as.map(a=>{
+    const st=S.stats.agent[a.id];const mine=can(a.dept)&&perm('editOwn');const hist=a.history||[];
+    return h('div',{class:'card'},
+     h('div',{class:'row',style:'justify-content:space-between'},h('h3',{},a.name),pill(a.status,stCls(a.status))),
+     h('div',{class:'row'},pill(a.env,stCls(a.env)),h('span',{class:'tag'},'v'+a.version),h('span',{class:'tag'},a.dept),a.platform?h('span',{class:'tag'},a.platform):null),
+     h('dl',{class:'kv'},h('dt',{},'Owner'),h('dd',{},a.owner||'Unassigned'),h('dt',{},'Model'),h('dd',{},a.model),h('dt',{},'Work period'),h('dd',{},a.schedule==='24/7'?'24/7':deptHours(a.dept)),
+       h('dt',{},'Connectors'),h('dd',{},(a.connectors||[]).length?(a.connectors||[]).map(c=>h('span',{class:'tag',style:'margin-right:4px'},c)):'None'),h('dt',{},'This session'),h('dd',{},statLine(st)),
+       a.haltReason?[h('dt',{},'Halted'),h('dd',{style:'color:var(--bad)'},a.haltReason)]:null),
+     mine?h('div',{class:'row'},
+       h('button',{class:'btn sm',onclick:()=>openEditor('agents',a.id)},'Edit'),
+       h('button',{class:'btn sm',onclick:async()=>{await saveDoc('agents',a.id,{...strip(a),status:a.status==='active'?'paused':'active',haltReason:''});render()}},a.status==='active'?'Pause':a.status==='draft'?'Activate':'Resume'),
+       a.env!=='prod'?h('button',{class:'btn sm',onclick:async()=>{const e=a.env==='dev'?'staging':'prod';if(e==='prod'&&!perm('deployProd')){toast('Your role cannot deploy to production. Send a request in Approvals.');return}const v2=bumpVersion(a.version);await saveDoc('agents',a.id,{...strip(a),env:e,version:v2,history:[...hist,{at:Date.now(),v:v2,env:e}].slice(-6)});render();toast('Deployed v'+v2+' to '+e)}},'Deploy to '+(a.env==='dev'?'staging':'prod')):null,
+       hist.length>1?h('button',{class:'btn sm',onclick:async()=>{const p=hist[hist.length-2];await saveDoc('agents',a.id,{...strip(a),env:p.env,version:p.v,history:hist.slice(0,-1)});render();toast('Rolled back to v'+p.v)}},'Roll back'):null):null);
+  })));
+  return v;
+}
+function deptHours(n){const d=byName('departments',n);return d?(d.alwaysOn?'24/7':d.days+' '+d.hoursStart+' to '+d.hoursEnd):'Not set'}
+
+/* platforms */
+function viewPlatforms(){
+  const ps=list('platforms');const v=h('div',{});
+  v.append(h('div',{class:'note'},'Each platform is a service your agents run on. Mark how its logs reach this room: Live ingest, a usage API, a webhook, or a file import. Platforms not connected yet still show their agents, owners and policies.'));
+  v.append(toolbar('platforms',ps.length+' platforms'));
+  if(!ps.length){v.append(empty('No platforms yet. Add Claude, Copilot, Gemini, Hermes or any other service your agents run on.'));return v}
+  v.append(h('div',{class:'grid'},ps.map(p=>{
+    const ags=list('agents').filter(a=>a.platform===p.name&&vis(a.dept));const st=S.stats.platform[p.name];const live=ags.filter(a=>a.status==='active').length;
+    const depts=[...new Set(ags.map(a=>a.dept))];
+    return h('div',{class:'card'},h('div',{class:'row',style:'justify-content:space-between'},h('h3',{},p.name),pill(p.status,p.status==='connected'?'ok':p.status==='blocked'?'bad':'warn')),
+     h('div',{class:'small muted'},(p.vendor||'')+(p.vendor&&p.kind?' · ':'')+(p.kind||'')),
+     h('dl',{class:'kv'},h('dt',{},'Logs arrive by'),h('dd',{},p.connection||'—'),h('dt',{},'Agents'),h('dd',{},ags.length?ags.length+' ('+live+' active)':'None'),h('dt',{},'Departments'),h('dd',{},depts.length?depts.join(', '):'None'),h('dt',{},'This session'),h('dd',{},statLine(st)),p.notes?[h('dt',{},'Notes'),h('dd',{},p.notes)]:null),
+     h('div',{class:'row'},h('button',{class:'btn sm',onclick:()=>{S.filter.platform=p.name;S.tab='console';paintTabs();render()}},'View events'),S.canWrite&&S.role==='all'?h('button',{class:'btn sm',onclick:()=>openEditor('platforms',p.id)},'Edit'):null));
+  })));
+  return v;
+}
+
+/* people */
+function viewPeople(){
+  const ps=list('people').filter(p=>vis(p.dept));const v=h('div',{});
+  v.append(toolbar('people',ps.length+' people'));
+  if(!ps.length){v.append(empty('No people yet. Add staff so usage, quotas and allowed models are tracked per person.'));return v}
+  v.append(h('div',{class:'tw'},h('table',{},h('thead',{},h('tr',{},['Name','Department','Role','Agents','Month to date','Quota used','This session','Allowed models',''].map((x,i)=>h('th',{class:i===4?'r':''},x)))),
+   h('tbody',{},ps.sort((a,b)=>(b.monthCost||0)-(a.monthCost||0)).map(p=>{const st=S.stats.person[p.name];const used=(p.monthCost||0)+(st?st.cost:0);const pct=p.quota?used/p.quota:0;
+    return h('tr',{},h('td',{},p.name),h('td',{},p.dept),h('td',{},p.role==='Employee'?p.role:pill(p.role,'')),h('td',{},list('agents').filter(a=>a.owner===p.name).length),h('td',{class:'r'},usd(used)),
+     h('td',{style:'min-width:120px'},h('span',{class:'small'},Math.round(pct*100)+'% of '+usd(p.quota)),h('div',{class:'meter'},h('i',{class:pct>=1?'hot':'',style:'width:'+Math.min(100,pct*100)+'%'}))),
+     h('td',{},st?fmt(st.calls)+' calls':'—'),h('td',{class:'wrap'},(p.models||[]).map(m=>h('span',{class:'tag',style:'margin-right:4px'},m.replace('Claude ','')))),
+     h('td',{},can(p.dept)&&perm('editOwn')?h('button',{class:'btn sm',onclick:()=>openEditor('people',p.id)},'Edit'):null))})))));
+  v.append(rolesCard());
+  return v;
+}
+
+function rolesCard(){
+  const can2=S.canWrite&&perm('editPolicy');
+  const rows=ACTIONS.map(([k,l])=>h('tr',{},h('td',{class:'wrap'},l),ROLE_LIST.map(r=>{const cb=h('input',{type:'checkbox',checked:!!(S.roleMatrix[r]||{})[k],disabled:!can2||r==='Admin'&&k==='editPolicy',id:'rm-'+r+'-'+k,'aria-label':r+': '+l});cb.addEventListener('change',()=>{S.roleMatrix[r]=S.roleMatrix[r]||{};S.roleMatrix[r][k]=cb.checked?1:0;savePol('Role permissions');paintTabs()});return h('td',{style:'text-align:center'},cb)})));
+  return h('div',{class:'card',style:'margin-top:14px'},h('h3',{},'Role permissions'),h('p',{class:'small muted',style:'margin:0 0 8px'},'What each role may do. The Permission role menu at the top (next to View as) applies these live for all 4 roles — pick one to test it, or leave it on "Auto" to derive the role from View as (Back office or Dept head). There is still no real sign-in, so this is a manual role switch, not per-person identity.'),h('div',{class:'tw'},h('table',{},h('thead',{},h('tr',{},h('th',{},'Action'),ROLE_LIST.map(r=>h('th',{style:'text-align:center'},r)))),h('tbody',{},rows))));
+}
+
+/* departments */
+function viewDepts(){
+  const ds=list('departments').filter(d=>vis(d.name));const v=h('div',{});
+  v.append(toolbar('departments',S.role==='all'?ds.length+' departments':'Policies for '+S.role));
+  if(!ds.length){v.append(empty('No departments yet. Each one holds a head, budget, allowed models and connectors, and a work period.'));return v}
+  v.append(h('div',{class:'grid'},ds.map(d=>{
+    const st=S.stats.dept[d.name];const staff=list('people').filter(p=>p.dept===d.name);const month=staff.reduce((a,p)=>a+(p.monthCost||0),0)+(st?st.cost:0);const pct=d.budget?month/d.budget:0;
+    return h('div',{class:'card'},h('div',{class:'row',style:'justify-content:space-between'},h('h3',{},d.name),pct>=1?pill('Over budget','bad'):pct>=.9?pill('Near limit','warn'):pill('On budget','ok')),
+     h('div',{class:'small muted'},'Head: '+(d.head||'Not assigned')+' · '+staff.length+' staff · '+list('agents').filter(a=>a.dept===d.name).length+' agents'),
+     h('div',{style:'margin-top:10px'},h('span',{class:'small'},usd(month)+' of '+usd(d.budget)+' ('+Math.round(pct*100)+'%)'),h('div',{class:'meter'},h('i',{class:pct>=1?'hot':'',style:'width:'+Math.min(100,pct*100)+'%'})),h('div',{class:'small muted',style:'margin-top:4px'},'Projected month end '+usd(proj(month))+' ('+Math.round(proj(month)/(d.budget||1)*100)+'%)'+(d.hardCap?' · auto-block at cap':' · no auto-block'))),
+     h('dl',{class:'kv'},h('dt',{},'Work period'),h('dd',{},d.alwaysOn?'24/7':d.days+', '+d.hoursStart+' to '+d.hoursEnd),h('dt',{},'Models'),h('dd',{},(d.models||[]).map(m=>h('span',{class:'tag',style:'margin:0 4px 3px 0;display:inline-block'},m.replace('Claude ','')))),
+       h('dt',{},'Connectors'),h('dd',{},(d.connectors||[]).length?(d.connectors||[]).map(c=>h('span',{class:'tag',style:'margin:0 4px 3px 0;display:inline-block'},c)):'None'),
+       h('dt',{},'Cost center'),h('dd',{},d.costCenter||'—'),h('dt',{},'Blocked'),h('dd',{},st?st.blocked+' events, '+st.loops+' loops':'—')),
+     perm('editPolicy')&&can(d.name)?h('button',{class:'btn sm',onclick:()=>openEditor('departments',d.id)},'Edit policy'):null);
+  })));
+  v.append(policyPanel());
+  return v;
+}
+
+function policyJSON(){return JSON.stringify({generatedAt:new Date().toISOString(),mode:S.pol.mode,loopGuard:S.cfg,commsGuard:S.comms,
+  ownedIdentityStorm:{enabled:S.comms.ownedStormEnabled,ownedIdentities:S.comms.owned,maxCombinedMessages:S.comms.maxOwnedMsgs,windowMinutes:S.comms.ownedWindowMin,fastReplyUnderSec:S.comms.ownedBotSpeedSec,consecutiveFastTurns:S.comms.ownedBotSpeedTurns,costCeilingUsd:S.comms.maxOwnedCostUsd,onTripAlways:'freeze-all-and-halt-agents',note:'Trips when (combined messages >= maxCombinedMessages AND consecutive fast turns >= consecutiveFastTurns) OR combined spend >= costCeilingUsd, counting ALL traffic to/from any address in ownedIdentities regardless of domain or CRM contact ID.'},
+  departments:Object.fromEntries(list('departments').map(d=>[d.name,{allowedModels:d.models||[],allowedConnectors:d.connectors||[],monthlyBudget:d.budget,hardCap:!!d.hardCap,workPeriod:d.alwaysOn?'24/7':{days:d.days,from:d.hoursStart,to:d.hoursEnd}}])),agents:Object.fromEntries(list('agents').map(a=>[a.name,{platform:a.platform,dept:a.dept,model:a.model,connectors:a.connectors||[],status:a.status,env:a.env}])),peopleQuotas:Object.fromEntries(list('people').map(p=>[p.name,{quota:p.quota,hardCap:!!p.hardCap,models:p.models||[]}]))},null,2)}
+async function saveFile(filename,data){
+  let dl=null;try{dl=await claude.use('downloads')}catch(e){}
+  if(dl){try{await dl.save({filename,data});return}catch(e){if(e&&e.code==='declined')return}}
+  try{const a=h('a',{href:URL.createObjectURL(new Blob([data],{type:'text/plain;charset=utf-8'})),download:filename});document.body.append(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500);toast('Downloaded '+filename)}catch(e){toast('Downloads are unavailable here. Use Copy instead.')}
+}
+function copyText(t){try{navigator.clipboard.writeText(t).then(()=>toast('Copied'),()=>toast('Copy was blocked. Select the text instead.'))}catch(e){toast('Copy was blocked. Select the text instead.')}}
+function policyPanel(){
+  const mode=h('select',{class:'sel',id:'pm',disabled:!(S.canWrite&&perm('editPolicy'))},[['monitor','Monitor only (flag violations)'],['enforce','Enforce (block violations)']].map(([v,l])=>h('option',{value:v,selected:S.pol.mode===v},l)));
+  mode.addEventListener('change',()=>{S.pol.mode=mode.value;savePol('Enforcement mode: '+mode.value)});
+  const ag=h('select',{class:'sel',id:'ta'},list('agents').map(a=>h('option',{value:a.id},a.name+' ('+a.dept+')')));
+  const when=h('select',{class:'sel',id:'tw'},[['now','Right now'],['day','Weekday 10:30'],['night','Weekday 22:00']].map(([v,l])=>h('option',{value:v},l)));
+  const out=h('div',{style:'margin-top:8px'});
+  const run=h('button',{class:'btn',type:'button',onclick:()=>{const a=S.agents[ag.value];if(!a)return;let t=Date.now();if(when.value!=='now'){const d=new Date();while(d.getDay()===0||d.getDay()===6)d.setDate(d.getDate()+1);d.setHours(when.value==='day'?10:22,when.value==='day'?30:0,0,0);t=d.getTime()}const why=evaluate(a,t);out.replaceChildren(why?pill('Would be blocked','bad'):pill('Allowed','ok'),h('span',{class:'small',style:'margin-left:8px'},why||'Model, connectors, work period and budget all pass.'))}},'Test');
+  const json=policyJSON();
+  return h('div',{class:'card',style:'margin-top:14px'},h('h3',{},'Enforcement'),
+    h('p',{class:'small muted',style:'margin:0 0 8px'},'This page checks every call against the rules above. In Enforce mode the demo stream blocks violations. Real agents are only stopped when your gateway reads the policy below and applies it before each call.'),
+    h('div',{class:'row'},h('label',{class:'small muted'},'Mode ',mode)),
+    h('div',{class:'row',style:'margin-top:10px'},h('strong',{class:'small'},'Test a call'),ag,when,run),out,
+    h('div',{class:'row',style:'margin-top:12px'},h('strong',{class:'small'},'Policy for your gateway'),h('button',{class:'btn sm',onclick:()=>copyText(json)},'Copy JSON'),h('button',{class:'btn sm',onclick:()=>saveFile('agent-policy.json',json)},'Download')),
+    h('pre',{class:'code',style:'max-height:160px'},json.slice(0,900)+(json.length>900?'\n…':'')));
+}
+
+/* connectors */
+function rotDays(c){if(!c.lastRotated||!c.rotateEveryDays)return null;const due=new Date(c.lastRotated).getTime()+c.rotateEveryDays*864e5;return Math.round((due-Date.now())/864e5)}
+function rot(c){const d=rotDays(c);if(d==null)return 'Not tracked';return d<0?pill('Overdue by '+(-d)+' days','bad'):d<=14?pill('Due in '+d+' days','warn'):pill('Due in '+d+' days','ok')}
+function viewConnectors(){
+  const cs=list('connectors');const v=h('div',{});
+  v.append(h('div',{class:'note'},'This is a register, not a vault. Record where each credential lives (the vault name) and when it was last rotated. Never paste an actual key here.'));
+  v.append(toolbar('connectors',cs.length+' connectors'));
+  if(!cs.length){v.append(empty('No connectors yet. List the apps your agents may reach, with scopes and which departments can use them.'));return v}
+  v.append(h('div',{class:'grid'},cs.map(c=>{
+    const users=list('agents').filter(a=>(a.connectors||[]).includes(c.name)&&vis(a.dept));const depts=list('departments').filter(d=>(d.connectors||[]).includes(c.name)).map(d=>d.name);
+    return h('div',{class:'card'},h('div',{class:'row',style:'justify-content:space-between'},h('h3',{},c.name),pill(c.status,stCls(c.status))),
+     h('dl',{class:'kv'},h('dt',{},'Scopes'),h('dd',{},c.scopes||'—'),h('dt',{},'Departments'),h('dd',{},depts.length?depts.join(', '):'None'),h('dt',{},'Agents using it'),h('dd',{},users.length?users.map(a=>a.name).join(', '):'None'),h('dt',{},'Approval'),h('dd',{},c.needsApproval?'Required per agent':'Not required'),h('dt',{},'Credential'),h('dd',{},c.credentialRef?h('span',{class:'mono'},c.credentialRef):'Not recorded'),h('dt',{},'Owner'),h('dd',{},c.owner||'Unassigned'),h('dt',{},'Rotation'),h('dd',{},rot(c))),
+     S.canWrite&&perm('editConnectors')?h('button',{class:'btn sm',onclick:()=>openEditor('connectors',c.id)},'Edit'):null);
+  })));
+  return v;
+}
+
+
+/* run trace */
+function openRun(runId){
+  const steps=S.logs.filter(e=>e.runId===runId).sort((a,b)=>a.id-b.id);
+  const sh=$('#sheet');
+  if(!steps.length){sh.replaceChildren(h('h2',{},'Run '+runId),h('p',{class:'muted'},'This run is older than the events kept in this session.'),h('button',{class:'btn',onclick:closeSheet},'Close'));sh.hidden=false;return}
+  const f=steps[0];const inc=list('incidents').find(i=>i.runId===runId);
+  const tokens=steps.reduce((a,e)=>a+e.tokens,0),cost=steps.reduce((a,e)=>a+e.cost,0),errs=steps.filter(e=>e.status==='error').length;
+  const tb=h('tbody',{},steps.map((e,i)=>h('tr',{class:e.status+(e.flags.includes('loop')?' flag':'')},h('td',{},i+1),h('td',{},timeStr(e.ts)),h('td',{class:'wrap'},e.tool+'('+JSON.stringify(e.args)+')'),h('td',{class:'wrap'},e.status==='ok'?(e.out||'ok'):e.status+': '+e.error),h('td',{class:'r'},fmt(e.tokens)))));
+  const replay=h('button',{class:'btn pri',onclick:()=>{const rows=[...tb.children];rows.forEach(r=>r.hidden=true);replay.disabled=true;let i=0;const t=setInterval(()=>{if(i>=rows.length){clearInterval(t);replay.disabled=false;return}rows[i].hidden=false;rows[i].scrollIntoView({block:'nearest'});i++},550)}},'Replay steps');
+  sh.replaceChildren(h('h2',{},'Run '+runId),
+    h('div',{class:'row'},pill(f.agent),pill(f.platform),pill(f.dept)),
+    h('dl',{class:'kv'},h('dt',{},'Steps'),h('dd',{},steps.length+(errs?' ('+errs+' errors)':'')),h('dt',{},'Tokens'),h('dd',{},fmt(tokens)),h('dt',{},'Cost'),h('dd',{},usd(cost)),inc?[h('dt',{},'Loop guard'),h('dd',{style:'color:var(--bad)'},inc.reason)]:null),
+    h('div',{class:'small muted',style:'margin-bottom:8px'},'Replay steps through what was recorded. It does not run the agent again.'),
+    h('div',{class:'tw',style:'max-height:50vh'},h('table',{},h('thead',{},h('tr',{},['#','Time','Call','Result','Tokens'].map(x=>h('th',{},x)))),tb)),
+    h('div',{class:'row',style:'margin-top:12px'},replay,h('button',{class:'btn',onclick:closeSheet},'Close')));
+  sh.hidden=false;
+}
+
+/* approvals & alerts */
+function computeAlerts(){
+  const out=[];const now=Date.now();
+  list('incidents').filter(i=>i.status!=='resolved'&&vis(i.dept)).forEach(i=>out.push({sev:'bad',rule:i.kind==='ownedStorm'?'Owned-identity storm':i.kind==='comms'?'Comms ping-pong':'Loop caught',t:(i.kind==='ownedStorm'?'Owned-identity storm: ':i.kind==='comms'?'Comms storm: ':'Loop caught: ')+i.agent,d:i.reason,at:i.at}));
+  Object.values(S.threads).filter(t=>t.frozen&&!t.frozenByOwnedStorm).forEach(t=>out.push({sev:'bad',rule:'Comms ping-pong',t:'Frozen thread: '+t.label,d:t.reason+' ('+(t.blockedCount||0)+' messages blocked)',at:t.trippedAt||now}));
+  if(S.ownedAgg&&S.ownedAgg.frozen)out.push({sev:'bad',rule:'Owned-identity storm',t:'All owned-identity traffic frozen, agents halted',d:S.ownedAgg.reason,at:S.ownedAgg.trippedAt||now});
+  list('departments').filter(d=>vis(d.name)).forEach(d=>{const m=deptMonth(d.name),pc=d.budget?m/d.budget:0;if(pc>=.8)out.push({sev:pc>=1?'bad':'warn',rule:'Budget at 80%',t:d.name+' budget at '+Math.round(pc*100)+'%',d:'Projected '+usd(proj(m))+' against '+usd(d.budget)+'.',at:now})});
+  const bl=visibleLogs().filter(e=>(e.status==='blocked'||e.violation)&&now-e.ts<900000);
+  if(bl.length)out.push({sev:'warn',rule:'Policy block',t:bl.length+' policy hits in the last 15 minutes',d:[...new Set(bl.map(e=>e.agent))].slice(0,4).join(', '),at:now});
+  const ah=visibleLogs().filter(e=>e.flags.includes('after hours')&&now-e.ts<900000);
+  if(ah.length)out.push({sev:'warn',rule:'After-hours call',t:ah.length+' calls outside work periods in the last 15 minutes',d:[...new Set(ah.map(e=>e.dept))].join(', '),at:now});
+  list('connectors').forEach(c=>{const d=rotDays(c);if(d!=null&&d<=14)out.push({sev:d<0?'bad':'warn',rule:'Credential rotation due',t:c.name+' credential '+(d<0?'overdue by '+(-d)+' days':'due in '+d+' days'),d:'Owner: '+(c.owner||'unassigned'),at:now})});
+  return out;
+}
+async function decide(r,ok){
+  await saveDoc('requests',r.id,{...strip(r),status:ok?'approved':'denied',decidedBy:actor(),decidedAt:Date.now()});
+  if(!ok){toast('Denied');return}
+  const d=byName('departments',r.dept);
+  if(r.type==='Connector access'&&d&&r.item&&!(d.connectors||[]).includes(r.item))await saveDoc('departments',d.id,{...strip(d),connectors:[...(d.connectors||[]),r.item]});
+  else if(r.type==='Model access'&&d&&r.item&&!(d.models||[]).includes(r.item))await saveDoc('departments',d.id,{...strip(d),models:[...(d.models||[]),r.item]});
+  else if(r.type==='Budget increase'&&d){const add=parseFloat(String(r.item).replace(/[^0-9.]/g,''))||0;if(add)await saveDoc('departments',d.id,{...strip(d),budget:(d.budget||0)+add})}
+  else if(r.type==='Deploy to production'){const a=byName('agents',r.item);if(a)await saveDoc('agents',a.id,{...strip(a),env:'prod',version:bumpVersion(a.version)})}
+  toast('Approved and applied');
+}
+function viewApprovals(){
+  const v=h('div',{});
+  const al=computeAlerts();
+  v.append(h('div',{class:'card'},h('h3',{},'Alerts now'),h('div',{class:'small muted',style:'margin-bottom:8px'},'Slack and email delivery need a connected channel. Until then, alerts show here and as the red badge on the Live console tab.'),
+    al.length?al.map(a=>h('div',{class:'row',style:'padding:6px 0;border-top:1px solid var(--line);justify-content:space-between'},h('div',{},h('strong',{},a.t),h('div',{class:'small muted'},a.d)),pill(a.rule,a.sev))):h('div',{class:'muted'},'Nothing needs attention.')));
+  const reqs=list('requests').filter(r=>vis(r.dept)).sort((a,b)=>(b.decidedAt||0)-(a.decidedAt||0));
+  const pend=reqs.filter(r=>r.status==='pending');
+  v.append(h('div',{style:'height:14px'}),toolbar('requests','Access and change requests'));
+  v.append(pend.length?h('div',{class:'grid'},pend.map(r=>{const may=perm('approve')&&(S.role==='all'||r.dept===S.role)&&S.canWrite;
+    return h('div',{class:'card'},h('div',{class:'row',style:'justify-content:space-between'},h('h3',{},r.type),pill('pending','warn')),
+     h('dl',{class:'kv'},h('dt',{},'Department'),h('dd',{},r.dept),h('dt',{},'Requested by'),h('dd',{},r.requester||'—'),h('dt',{},'What'),h('dd',{},r.item||'—'),h('dt',{},'Reason'),h('dd',{},r.reason||'—')),
+     may?h('div',{class:'row'},h('button',{class:'btn sm pri',onclick:()=>decide(r,true)},'Approve'),h('button',{class:'btn sm',onclick:()=>decide(r,false)},'Deny')):h('div',{class:'small muted'},'Waiting for someone with approval rights.'))})):empty('No pending requests.'));
+  const done=reqs.filter(r=>r.status!=='pending');
+  if(done.length)v.append(h('div',{class:'tw',style:'margin-top:12px'},h('table',{},h('thead',{},h('tr',{},['Type','Department','What','Requested by','Decision','Decided by'].map(x=>h('th',{},x)))),h('tbody',{},done.slice(0,12).map(r=>h('tr',{},h('td',{},r.type),h('td',{},r.dept),h('td',{},r.item||'—'),h('td',{},r.requester||'—'),h('td',{},pill(r.status,r.status==='approved'?'ok':'bad')),h('td',{},r.decidedBy||'—')))))));
+  v.append(h('div',{style:'height:14px'}),toolbar('alertRules','Alert rules'));
+  const rules=list('alertRules');
+  v.append(rules.length?h('div',{class:'tw'},h('table',{},h('thead',{},h('tr',{},['Rule','Trigger','Channel','Send to','On',''].map(x=>h('th',{},x)))),h('tbody',{},rules.map(r=>h('tr',{},h('td',{},r.name),h('td',{},r.trigger),h('td',{},r.channel),h('td',{},r.target||'—'),h('td',{},r.enabled?'Yes':'No'),h('td',{},S.canWrite?h('button',{class:'btn sm',onclick:()=>openEditor('alertRules',r.id)},'Edit'):null)))))):empty('No alert rules yet.'));
+  return v;
+}
+
+/* cost & outcomes */
+let costGroup='Department';
+const csvCell=(x)=>{const t=String(x==null?'':x);return /[",\n]/.test(t)?'"'+t.replace(/"/g,'""')+'"':t};
+function toCsv(head,rows){return [head,...rows].map(r=>r.map(csvCell).join(',')).join('\n')}
+function costRows(){
+  if(costGroup==='Department')return list('departments').filter(d=>vis(d.name)).map(d=>{const m=deptMonth(d.name);return [d.name,d.costCenter||'—',list('agents').filter(a=>a.dept===d.name).length,m,proj(m),d.budget||0]});
+  if(costGroup==='Platform')return list('platforms').map(p=>{const as=list('agents').filter(a=>a.platform===p.name&&vis(a.dept));const m=as.reduce((x,a)=>x+agentMonth(a),0);return [p.name,p.vendor||'—',as.length,m,proj(m),0]}).filter(r=>r[2]);
+  if(costGroup==='Agent')return list('agents').filter(a=>vis(a.dept)).map(a=>{const m=agentMonth(a);return [a.name,(a.platform||'—')+' · '+a.dept,1,m,proj(m),0]});
+  return list('people').filter(p=>vis(p.dept)).map(p=>{const m=personMonth(p.name);return [p.name,p.dept,list('agents').filter(a=>a.owner===p.name).length,m,proj(m),p.quota||0]});
+}
+function viewCost(){
+  const v=h('div',{});
+  const g=h('select',{class:'sel',id:'cg'},['Department','Platform','Agent','Person'].map(x=>h('option',{value:x,selected:costGroup===x},x)));g.addEventListener('change',()=>{costGroup=g.value;render()});
+  const rows=costRows().sort((a,b)=>b[3]-a[3]);const head=[costGroup,costGroup==='Department'?'Cost center':costGroup==='Person'?'Department':'Detail','Agents','Month to date ($)','Projected month end ($)','Budget or quota ($)'];
+  const csv=toCsv(head,rows.map(r=>[r[0],r[1],r[2],r[3].toFixed(2),r[4].toFixed(2),r[5]||'']));
+  v.append(h('div',{class:'tool'},h('div',{class:'row'},h('strong',{},'Chargeback'),h('label',{class:'small muted'},'Group by ',g)),h('button',{class:'btn',onclick:()=>saveFile('chargeback-'+costGroup.toLowerCase()+'-'+new Date().toISOString().slice(0,7)+'.csv',csv)},'Export CSV')));
+  v.append(rows.length?h('div',{class:'tw'},h('table',{},h('thead',{},h('tr',{},head.map((x,i)=>h('th',{class:i>1?'r':''},x)))),h('tbody',{},rows.map(r=>h('tr',{},h('td',{},r[0]),h('td',{},r[1]),h('td',{class:'r'},r[2]),h('td',{class:'r'},usd(r[3])),h('td',{class:'r'},usd(r[4])),h('td',{class:'r'},r[5]?usd(r[5])+' ('+Math.round(r[3]/r[5]*100)+'%)':'—')))))):empty('Nothing to show yet.'));
+  v.append(h('div',{class:'small muted',style:'margin:6px 0 18px'},'Month to date adds the amounts you entered on people and agents to what this session has recorded. Projection assumes the rest of the month looks like the days so far.'));
+  const rate=h('input',{class:'inp',type:'number',min:0,id:'hr',value:S.pol.hourlyRate,style:'width:80px'});rate.addEventListener('change',()=>{S.pol.hourlyRate=Math.max(0,+rate.value||0);savePol('Hourly rate');render()});rate.disabled=!(S.canWrite&&perm('editPolicy'));
+  v.append(h('div',{class:'tool'},h('div',{class:'row'},h('strong',{},'Outcomes'),h('label',{class:'small muted'},'Value of an hour saved ($) ',rate))));
+  const ags=list('agents').filter(a=>vis(a.dept)&&a.monthRuns);
+  v.append(ags.length?h('div',{class:'tw'},h('table',{},h('thead',{},h('tr',{},['Agent','Platform','Runs','Success','Overridden','Hours saved','Cost','Cost per run','Value','Return'].map((x,i)=>h('th',{class:i>1?'r':''},x)))),h('tbody',{},ags.sort((a,b)=>b.monthRuns-a.monthRuns).map(a=>{const hrs=a.monthRuns*(a.minutesSaved||0)/60,cost=agentMonth(a),val=hrs*S.pol.hourlyRate,roi=cost?val/cost:0;
+    return h('tr',{},h('td',{},a.name),h('td',{},a.platform||'—'),h('td',{class:'r'},fmt(a.monthRuns)),h('td',{class:'r'},(a.successRate!=null?a.successRate+'%':'—')),h('td',{class:'r'},(a.overrideRate!=null?a.overrideRate+'%':'—')),h('td',{class:'r'},fmt(Math.round(hrs))),h('td',{class:'r'},usd(cost)),h('td',{class:'r'},usd(cost/a.monthRuns)),h('td',{class:'r'},usd(val)),h('td',{class:'r'},pill(roi?roi.toFixed(1)+'x':'—',roi>=1?'ok':'warn')))})))):empty('No outcome data yet. Add runs this month and minutes saved per run on each agent.'));
+  v.append(h('div',{class:'small muted',style:'margin-top:6px'},'Runs, success rate, override rate and minutes saved are figures you enter on each agent. A return under 1x means the agent costs more than the time it saves.'));
+  return v;
+}
+
+/* audit */
+const AF={kind:'',q:''};
+function viewAudit(){
+  if(!perm('audit'))return empty('Your current role cannot view the audit trail.');
+  const v=h('div',{});
+  const all=()=>list('audit').sort((a,b)=>b.at-a.at);
+  const kinds=[...new Set(all().map(x=>x.kind))];
+  const ks=h('select',{class:'sel',id:'ak'},h('option',{value:''},'All records'),kinds.map(k=>h('option',{value:k,selected:AF.kind===k},k)));
+  const q=h('input',{class:'inp',type:'search',id:'aq',placeholder:'Search who, what or detail',value:AF.q});
+  const tb=h('tbody',{});
+  const rowsNow=()=>all().filter(x=>(!AF.kind||x.kind===AF.kind)&&(!AF.q||[x.who,x.action,x.kind,x.target,x.detail].join(' ').toLowerCase().includes(AF.q.toLowerCase()))).slice(0,150);
+  const fill=()=>{const r=rowsNow();tb.replaceChildren(...r.map(x=>h('tr',{},h('td',{},new Date(x.at).toLocaleString([], {hour12:false,month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})),h('td',{},x.who),h('td',{},x.action),h('td',{},x.kind),h('td',{},x.target),h('td',{class:'wrap'},x.detail))));$('#aempty').hidden=r.length>0};
+  ks.addEventListener('change',()=>{AF.kind=ks.value;fill()});q.addEventListener('input',()=>{AF.q=q.value;fill()});
+  v.append(h('div',{class:'tool'},h('div',{class:'row'},h('strong',{},'Audit trail'),ks,q),h('button',{class:'btn',onclick:()=>saveFile('audit-trail.csv',toCsv(['When','Who','Action','Record','Target','Detail'],rowsNow().map(x=>[new Date(x.at).toISOString(),x.who,x.action,x.kind,x.target,x.detail])))},'Export CSV')));
+  v.append(h('div',{class:'tw'},h('table',{},h('thead',{},h('tr',{},['When','Who','Action','Record','Target','Detail'].map(x=>h('th',{},x)))),tb)),h('div',{class:'empty',id:'aempty',hidden:true},'No matching records. Edits, deploys, approvals and loop stops will appear here.'));
+  setTimeout(fill,0);
+  v.append(h('div',{class:'small muted',style:'margin-top:8px'},'The person shown is the role selected in View as. Per-person names arrive with sign-in.'));
+  return v;
+}
+
+/* sources */
+const SHAPE='{"ts":"2026-10-25T14:02:11Z","agentId":"<agent doc id>","runId":"run-8841","tool":"get_customer","args":{"id":"C-1042"},"status":"ok | error | blocked","error":"","out":"result summary","tokens":4200,"cost":0.04}';
+function viewSources(){
+  const ss=list('sources');const v=h('div',{});
+  v.append(h('div',{class:'note'},'Not sure where your logs will live yet? Keep the Demo stream on while you decide. Anything that can write one record per tool call in the shape below can feed Live ingest, and every source runs through the same loop detector.'));
+  v.append(toolbar('sources',ss.length+' sources'));
+  v.append(h('div',{class:'grid'},ss.map(s=>h('div',{class:'card'},h('div',{class:'row',style:'justify-content:space-between'},h('h3',{},s.name),pill(s.status,s.status==='active'?'ok':s.status==='error'?'bad':'warn')),h('div',{class:'small muted'},s.type),h('p',{class:'small'},s.endpoint||''),S.canWrite&&S.role==='all'?h('button',{class:'btn sm',onclick:()=>openEditor('sources',s.id)},'Edit'):null))));
+  v.append(h('div',{class:'card',style:'margin-top:12px'},h('h3',{},'Log record shape'),h('div',{class:'small muted'},'One record per tool call. Stored as documents in the logs collection of this page, or imported from the console as JSON or CSV.'),h('pre',{class:'code'},SHAPE)));
+  return v;
+}
+
+/* comms & ping-pong guard */
+let stormTimer=null;
+function simCrossStorm(){
+  if(stormTimer){toast('Simulation already running');return}
+  const dom='partner-'+rnd(10,99)+'.io',cid='CRM-'+rnd(200,899);
+  const addrs=['intake@'+dom,'underwriting@'+dom,'docs@'+dom,'routing@'+dom,'+1555'+rnd(2000000,8999999)];
+  const agPool=['a_1','a_9','a_2','a_6'].map(id=>S.agents[id]).filter(Boolean);
+  const picks=agPool.length?agPool:list('agents');
+  if(!picks.length){toast('Add at least one agent first');return}
+  let step=0;const total=10;
+  toast('Simulating 4-email + SMS cross-interaction on *@'+dom+'…');
+  stormTimer=setInterval(()=>{
+    const ag=picks[step%picks.length];
+    const to=addrs[step%addrs.length],from=addrs[(step+2)%addrs.length];
+    const sms=to.startsWith('+');
+    ingest({ts:Date.now(),vt:vtAt(11,15),agentId:ag.id,runId:'storm-'+rnd(10000,99999),tool:sms?'send_sms':'send_email',
+      args:{from,to,channel:sms?'sms':'email',contactId:cid,replySec:+(1.6+Math.random()*2.8).toFixed(1),subject:'Re: File update '+cid},
+      status:'ok',out:'queued msg '+(step+1),tokens:rnd(1800,4200)},true,'live');
+    step++;paintCommsLive();paintConsole();
+    if(step>=total){clearInterval(stormTimer);stormTimer=null;toast('Storm halted — thread frozen & remaining messages blocked at $0')}
+  },360);
+}
+function simSelfTalk(){
+  const picks=list('agents');const ag=S.agents.a_1||picks[0];if(!ag)return;
+  const own=S.comms.owned||[];
+  const e1=own.find(x=>x.includes('@')&&!x.includes('*'))||'sales@acmeops.com';
+  const e2=own.filter(x=>x.includes('@')&&!x.includes('*'))[1]||'support@acmeops.com';
+  const ph=own.find(x=>x.startsWith('+'))||'+15550101002';
+  ingest({ts:Date.now(),vt:vtAt(10,45),agentId:ag.id,runId:'self-'+rnd(1000,9999),tool:'send_email',args:{from:e1,to:e2,channel:'email'},status:'ok',tokens:3100},true,'live');
+  ingest({ts:Date.now(),vt:vtAt(10,45),agentId:(S.agents.a_9||ag).id,runId:'self-'+rnd(1000,9999),tool:'send_sms',args:{from:e2,to:ph,channel:'sms'},status:'ok',tokens:1900},true,'live');
+  paintCommsLive();paintConsole();toast('Blocked internal email + SMS self-talk at $0.00 before LLM call');
+}
+function simAckTennis(){
+  const picks=list('agents');const ag=S.agents.a_9||picks[0];if(!ag)return;
+  ingest({ts:Date.now(),vt:vtAt(14,10),agentId:ag.id,runId:'ack-'+rnd(1000,9999),tool:'send_email',args:{to:'client-assist@vendorcorp.com',channel:'email',inbound:'Thanks! Have a great rest of your day!'},status:'ok',tokens:2600},true,'live');
+  ingest({ts:Date.now(),vt:vtAt(14,10),agentId:ag.id,runId:'ack-'+rnd(1000,9999),tool:'send_email',args:{to:'vacation@vendorcorp.com',channel:'email',headers:'Auto-Submitted: auto-replied',inbound:'I am out of the office until Monday.'},status:'ok',tokens:2400},true,'live');
+  paintCommsLive();paintConsole();toast('Suppressed 2 polite-goodbye / auto-reply loops at $0.00');
+}
+let ownedStormTimer=null;
+function simOwnedStorm(){
+  if(ownedStormTimer){toast('Simulation already running');return}
+  const own=(S.comms.owned||[]).slice();
+  const wildcard=own.find(x=>x.startsWith('*@'));
+  const addrs=[own.find(x=>x.includes('@')&&!x.includes('*'))||'sales@acmeops.com',
+    wildcard?wildcard.replace('*','owner'):'owner@msgsndr.com',
+    own.find(x=>x.startsWith('+'))||'+15550101001',
+    own.filter(x=>x.startsWith('+'))[1]||'+15550101002'];
+  const picks=['a_1','a_9','a_6','a_2'].map(id=>S.agents[id]).filter(Boolean);
+  const agPool=picks.length?picks:list('agents');
+  if(!agPool.length){toast('Add at least one agent first');return}
+  let step=0;const total=8;
+  toast('Simulating 4 owned identities storming each other (no shared contactId, different domains/numbers)…');
+  ownedStormTimer=setInterval(()=>{
+    const ag=agPool[step%agPool.length];
+    const to=addrs[step%addrs.length],from=addrs[(step+1)%addrs.length];
+    const sms=to.startsWith('+');
+    ingest({ts:Date.now(),vt:vtAt(11,15),agentId:ag.id,runId:'ownedstorm-'+rnd(10000,99999),tool:sms?'send_sms':'send_email',
+      args:{from,to,channel:sms?'sms':'email',replySec:+(1.2+Math.random()*2.2).toFixed(1)},
+      status:'ok',out:'queued msg '+(step+1),tokens:rnd(1800,4200)},true,'live');
+    step++;paintCommsLive();paintConsole();
+    if(step>=total||(S.ownedAgg&&S.ownedAgg.frozen)){clearInterval(ownedStormTimer);ownedStormTimer=null;if(!(S.ownedAgg&&S.ownedAgg.frozen))toast('Simulation finished without tripping — try lowering the thresholds')}
+  },320);
+}
+function paintCommsLive(){
+  const kp=$('#comms-kpis'),tb=$('#comms-tbody'),em=$('#comms-empty');if(!kp)return;
+  const cs=S.commsStats,frz=Object.values(S.threads).filter(t=>t.frozen).length,agg=S.ownedAgg;
+  kp.replaceChildren(
+    kpiBox('Comms checked',fmt(cs.checked)),
+    kpiBox('Self-talk / bots stopped',fmt(cs.selfBlocked)),
+    kpiBox('Thank-you tennis stopped',fmt(cs.ackStopped)),
+    kpiBox('Threads frozen',frz,frz>0),
+    kpiBox('Owned-identity storms stopped',fmt(cs.ownedStormTrips),cs.ownedStormTrips>0),
+    kpiBox('Messages blocked',fmt(cs.blockedMsgs)),
+    kpiBox('Est. credits saved',usd(cs.savedUsd)));
+  const os=$('#owned-storm-status');
+  if(os){
+    const kids=[agg&&agg.frozen?pill('FROZEN — '+agg.reason,'bad'):pill('Not tripped','ok')];
+    if(agg&&agg.frozen&&S.canWrite)kids.push(h('button',{class:'btn sm',style:'margin-left:8px',onclick:unfreezeOwnedStorm},'Unfreeze'));
+    os.replaceChildren(...kids);
+  }
+  const ths=Object.values(S.threads).sort((a,b)=>(b.frozen-a.frozen)||(b.lastTs-a.lastTs));
+  if(tb)tb.replaceChildren(...ths.map(t=>h('tr',{class:t.frozen?'flag':''},
+    h('td',{},h('strong',{},t.label)),
+    h('td',{},pill(t.frozen?'frozen':'active',t.frozen?'bad':'ok')),
+    h('td',{class:'wrap mono'},t.addresses.slice(0,5).join(', ')+(t.addresses.length>5?' (+'+(t.addresses.length-5)+')':'')),
+    h('td',{class:'wrap'},t.agents.join(' ↔ ')||'—'),
+    h('td',{class:'r'},t.recent.length),
+    h('td',{class:'r'},t.fastestSec!=null?t.fastestSec+'s':'—'),
+    h('td',{class:'r'},t.blockedCount||0),
+    h('td',{class:'wrap small muted'},t.reason||'Within normal velocity'),
+    h('td',{},t.frozen&&S.canWrite?h('button',{class:'btn sm',onclick:()=>unfreezeThread(t.key)},'Unfreeze'):null))));
+  if(em)em.hidden=ths.length>0;
+}
+function idListCard(title,sub,arrKey,placeholder){
+  const canEdit=S.canWrite&&perm('editPolicy');
+  const box=h('div',{class:'idlist'});
+  const draw=()=>{
+    const items=S.comms[arrKey]||[];
+    box.replaceChildren(...(items.length?items.map((v,idx)=>h('span',{class:'idpill'},v,canEdit?h('button',{type:'button',title:'Remove','aria-label':'Remove '+v,onclick:()=>{S.comms[arrKey].splice(idx,1);saveComms(title);draw()}},'×'):null)):[h('span',{class:'small muted'},'None listed yet.')]));
+  };
+  draw();
+  const inp=h('input',{class:'inp',placeholder,style:'flex:1;min-width:200px',disabled:!canEdit});
+  const add=()=>{const raw=inp.value.split(/[,\n;]+/).map(s=>normAddr(s)).filter(Boolean);if(!raw.length)return;S.comms[arrKey]=S.comms[arrKey]||[];let added=0;for(const x of raw){if(!S.comms[arrKey].includes(x)){S.comms[arrKey].push(x);added++}}inp.value='';if(added){saveComms(title);draw();toast('Added '+added+' pattern'+(added>1?'s':''))}};
+  inp.addEventListener('keydown',(e)=>{if(e.key==='Enter'){e.preventDefault();add()}});
+  return h('div',{class:'card'},h('h3',{},title),h('div',{class:'small muted'},sub),box,canEdit?h('div',{class:'row',style:'margin-top:8px'},inp,h('button',{class:'btn sm pri',type:'button',onclick:add},'Add')):null);
+}
+function viewComms(){
+  const v=h('div',{}),c=S.comms,dis=!(S.canWrite&&perm('editPolicy'));
+  v.append(h('div',{class:'note'},'Stops multi-email and SMS cross-interaction storms across separate runs and platforms. Combines your owned email/SMS blocklist with domain/contact velocity fuses, bot-speed timing (<'+c.botSpeedSec+'s replies), "thank-you tennis" suppression, and a dedicated owned-identity storm breaker that hard-stops the moment 2+ of your own addresses/numbers storm each other, regardless of domain or contact ID.'));
+  v.append(h('div',{class:'tool'},
+    h('div',{class:'row'},h('strong',{},'Live scenario simulator'),h('span',{class:'small muted'},'test multi-agent email & SMS loops safely')),
+    h('div',{class:'row'},
+      h('button',{class:'btn pri',onclick:simCrossStorm},'Simulate 4-email + SMS storm'),
+      h('button',{class:'btn',onclick:simSelfTalk},'Simulate internal self-talk'),
+      h('button',{class:'btn',onclick:simAckTennis},'Simulate "thank-you tennis"'),
+      h('button',{class:'btn',onclick:simOwnedStorm},'Simulate owned-identity storm (real-incident shape)'))));
+  v.append(h('div',{class:'kpis',id:'comms-kpis'}));
+  const g1=idListCard('1. Owned emails, domains & SMS numbers (Self-talk blocklist)',
+    'List every email, wildcard domain (*@yourdomain.com, *@msgsndr.com) and SMS number (+1555…) your company or bots send from. Agents are blocked at $0.00 before messaging any address here.',
+    'owned','e.g. bot2@company.com, *@msgsndr.com, +15550199999');
+  const g2=idListCard('2. External auto-responder & no-reply patterns',
+    'Known bot senders and system addresses that agents should never reply to or trigger from.',
+    'blockedSenders','e.g. noreply@*, *bot*@*, automated@*');
+  v.append(h('div',{class:'grid',style:'grid-template-columns:repeat(auto-fit,minmax(min(100%,380px),1fr));margin-bottom:14px'},g1,g2));
+
+  const num=(k,min,max,step=1)=>{const i=h('input',{class:'inp',type:'number',min,max,step,value:c[k],disabled:dis,style:'width:74px'});i.addEventListener('change',()=>{c[k]=Math.max(min,Math.min(max,+i.value||min));i.value=c[k];saveComms('Comms velocity rules')});return i};
+  const chk=(k)=>{const i=h('input',{type:'checkbox',checked:!!c[k],disabled:dis});i.addEventListener('change',()=>{c[k]=i.checked;saveComms('Comms guard toggle')});return i};
+  const actSel=h('select',{class:'sel',disabled:dis},[['freeze','Freeze thread / domain only'],['halt','Freeze thread + halt involved agents'],['warn','Warn only (do not block)']].map(([val,lbl])=>h('option',{value:val,selected:c.onTrip===val},lbl)));
+  actSel.addEventListener('change',()=>{c.onTrip=actSel.value;saveComms('Comms trip action')});
+
+  v.append(h('div',{class:'card',style:'margin-bottom:14px'},
+    h('div',{class:'row',style:'justify-content:space-between'},h('h3',{},'3. Conversation physics & velocity fuses'),h('label',{class:'row small'},chk('enabled'),'Comms guard enabled')),
+    h('div',{class:'guard'},
+      h('fieldset',{},h('legend',{},'Identity & ack filters'),
+        h('label',{},'Block owned-identity self-talk',chk('blockSelfTalk')),
+        h('label',{},'Stop "thank-you tennis" & OOO',chk('stopAckLoops'))),
+      h('fieldset',{},h('legend',{},'Per-recipient fuse'),
+        h('div',{class:'small muted'},'Max automated messages to one email or phone in window.'),
+        h('label',{},'Max per address',num('maxPerRecipient',1,50)),
+        h('label',{},'Window (minutes)',num('windowMin',1,1440))),
+      h('fieldset',{},h('legend',{},'Multi-email / domain fuse'),
+        h('div',{class:'small muted'},'Groups 4+ emails on the same company domain or CRM contact ID.'),
+        h('label',{},'Max per domain / contact',num('maxPerDomain',2,100)),
+        h('label',{},'SMS segment cost ($)',num('smsFee',0,1,0.005))),
+      h('fieldset',{},h('legend',{},'Bot-speed timing trap'),
+        h('div',{class:'small muted'},'Humans rarely reply in <8s three times straight; bots do.'),
+        h('label',{},'Fast reply under (sec)',num('botSpeedSec',1,60)),
+        h('label',{},'Consecutive fast turns',num('botSpeedTurns',2,15))),
+      h('fieldset',{},h('legend',{},'Circuit breaker action'),
+        h('div',{class:'small muted'},'What happens the instant a cross-system loop trips.'),
+        h('label',{},'On trip',actSel)))));
+
+  const ownedChk=(k)=>{const i=h('input',{type:'checkbox',checked:!!c[k],disabled:dis});i.addEventListener('change',()=>{c[k]=i.checked;saveComms('Owned-identity storm breaker')});return i};
+  v.append(h('div',{class:'card',style:'margin-bottom:14px'},
+    h('div',{class:'row',style:'justify-content:space-between'},h('h3',{},'4. Owned-identity storm breaker (hard auto-stop)'),h('span',{id:'owned-storm-status'})),
+    h('p',{class:'small muted',style:'margin:0 0 8px'},'Tracks ALL traffic across every address/number in your owned list above as one combined group — catching 2+ owned identities storming each other even when they don\'t share a CRM contact ID or an email domain (the exact pattern that burns real credits). The instant this trips it freezes everything touching an owned identity AND halts every agent involved, ignoring the "On trip" dropdown above — this rule is always hard-stop. Note: "Block owned-identity self-talk" above already blocks any single message to/from an owned address at $0; this breaker is the backstop for when that still lets a real storm slip through (e.g. if it\'s off, or the storm doesn\'t land on a literal self-talk match until it\'s already underway).'),
+    h('div',{class:'guard'},
+      h('fieldset',{},h('legend',{},'Enabled'),h('label',{},'Hard auto-stop on owned-identity storms',ownedChk('ownedStormEnabled'))),
+      h('fieldset',{},h('legend',{},'Volume + speed fuse'),
+        h('div',{class:'small muted'},'Trips when BOTH are true: enough combined messages, AND enough of them were bot-speed-fast in a row.'),
+        h('label',{},'Max combined messages',num('maxOwnedMsgs',2,100)),
+        h('label',{},'Window (minutes)',num('ownedWindowMin',1,1440)),
+        h('label',{},'Fast reply under (sec)',num('ownedBotSpeedSec',1,60)),
+        h('label',{},'Consecutive fast turns',num('ownedBotSpeedTurns',2,15))),
+      h('fieldset',{},h('legend',{},'Cost backstop'),
+        h('div',{class:'small muted'},'Independent dollar ceiling in case a storm dodges the speed gate.'),
+        h('label',{},'Max combined spend ($)',num('maxOwnedCostUsd',0.05,500,0.05))))));
+
+  const tFrom=h('input',{class:'inp',placeholder:'From (e.g. sales@acmeops.com)',value:'sales@acmeops.com',style:'width:200px'});
+  const tTo=h('input',{class:'inp',placeholder:'To (email or +1555…)',value:'support@acmeops.com',style:'width:200px'});
+  const tCh=h('select',{class:'sel'},[['email','Email'],['sms','SMS']].map(([val,lbl])=>h('option',{value:val},lbl)));
+  const tIn=h('input',{class:'inp',placeholder:'Optional inbound snippet (e.g. Thanks, have a great day!)',style:'flex:1;min-width:210px'});
+  const tOut=h('div',{style:'margin-top:8px'});
+  const tBtn=h('button',{class:'btn',type:'button',onclick:()=>{
+    const res=checkCommsRule({from:tFrom.value,to:tTo.value,channel:tCh.value,inbound:tIn.value},tCh.value==='sms'?'send_sms':'send_email');
+    if(!res){tOut.replaceChildren(pill('Guard off or empty','warn'));return}
+    if(res.block){tOut.replaceChildren(pill('Blocked at $0.00 ('+res.layer+')','bad'),h('span',{class:'small',style:'margin-left:8px'},res.why));return}
+    const th=S.threads[res.ci.key];const cnt=th?th.recent.length:0;
+    tOut.replaceChildren(pill('Allowed','ok'),h('span',{class:'small',style:'margin-left:8px'},'Cluster '+res.ci.label+' ('+cnt+'/'+(c.maxPerDomain||5)+' msgs in window). Passes self-talk, blocklist and ack filters.'));
+  }},'Test message');
+  v.append(h('div',{class:'card',style:'margin-bottom:14px'},
+    h('h3',{},'Pre-flight message tester'),
+    h('div',{class:'small muted',style:'margin-bottom:8px'},'Check how a message between any two emails or phone numbers will be handled before an agent sends it.'),
+    h('div',{class:'row'},tFrom,h('span',{class:'muted'},'→'),tTo,tCh,tIn,tBtn),tOut));
+
+  v.append(h('div',{class:'tool'},h('strong',{},'Tracked conversation clusters & frozen threads'),
+    Object.values(S.threads).some(t=>t.frozen)&&S.canWrite?h('button',{class:'btn sm',onclick:()=>{Object.keys(S.threads).forEach(k=>{if(S.threads[k].frozen)unfreezeThread(k)})}},'Unfreeze all'):null));
+  v.append(h('div',{class:'tw'},h('table',{},h('thead',{},h('tr',{},['Cluster / domain','Status','Addresses seen','Agents involved','Msgs in window','Fastest reply','Blocked','Reason',''].map((x,i)=>h('th',{class:i>=4&&i<=6?'r':''},x)))),h('tbody',{id:'comms-tbody'}))),
+    h('div',{class:'empty',id:'comms-empty'},'No email or SMS threads recorded yet. Click "Simulate 4-email + SMS storm" above to watch cross-agent protection in action.'));
+  setTimeout(paintCommsLive,0);
+  return v;
+}
+
+const VIEWS={console:viewConsole,comms:viewComms,agents:viewAgents,platforms:viewPlatforms,approvals:viewApprovals,cost:viewCost,audit:viewAudit,people:viewPeople,departments:viewDepts,connectors:viewConnectors,sources:viewSources};
+function render(){const v=$('#view');v.replaceChildren(VIEWS[S.tab]());paintTabs();if(S.tab==='console')paintConsole();if(S.tab==='comms')paintCommsLive()}
+
+/* ---------- demo stream ---------- */
+const TOOLS={Sales:['get_customer','search_crm','draft_email','update_deal'],Engineering:['read_file','search_code','run_tests','open_pr'],Recruiting:['search_candidates','get_resume','schedule_screen','send_outreach'],Marketing:['get_campaign','draft_copy','fetch_analytics'],Finance:['get_invoice','reconcile','export_report'],Operations:['get_ticket','update_status','notify_team'],Support:['get_customer','search_kb','reply_ticket']};
+const rnd=(a,b)=>Math.floor(a+Math.random()*(b-a+1));const pick=(a)=>a[rnd(0,a.length-1)];
+const sim={runs:[],loopAt:Date.now()+7000};
+function vtAt(hh,mm){const d=new Date();while(d.getDay()===0||d.getDay()===6)d.setDate(d.getDate()+1);d.setHours(hh,mm,0,0);return d.getTime()}
+function simTick(){
+  if(!S.src.demo)return;
+  const act=list('agents').filter(a=>a.status==='active');if(!act.length)return;
+  const now=Date.now();
+  if(now>=sim.loopAt&&!sim.runs.some(r=>r.loop)){
+    const a=pick(act);const tools=TOOLS[a.dept]||['call'];const perm=Math.random()<.5;
+    sim.runs.push({id:'run-'+rnd(1000,9999),a,loop:true,n:0,tool:tools[0],args:{id:'C-'+rnd(1000,1999)},err:perm?'403 permission denied':'503 upstream timeout'});sim.loopAt=now+rnd(35000,60000);
+  }
+  if(Math.random()<.55&&sim.runs.filter(r=>!r.loop).length<3){const a=pick(act);sim.runs.push({id:'run-'+rnd(1000,9999),a,loop:false,n:0,steps:rnd(3,6)})}
+  for(const r of [...sim.runs]){
+    const a=S.agents[r.a.id];if(!a||a.status!=='active'){sim.runs.splice(sim.runs.indexOf(r),1);continue}
+    const tools=TOOLS[a.dept]||['call'];const tok=rnd(800,9000);
+    let ev;
+    if(r.loop){r.n++;ev={ts:Date.now(),vt:vtAt(10,30),agentId:a.id,runId:r.id,tool:r.tool,args:r.args,status:'error',error:r.err,tokens:rnd(1500,3200)};
+      const R=S.runs[r.id];if((R&&R.tripped&&R.action!=='warn')||r.n>=14){sim.runs.splice(sim.runs.indexOf(r),1)}}
+    else{r.n++;const roll=Math.random();
+      if(roll<.05)ev={ts:Date.now(),agentId:a.id,runId:r.id,tool:pick(tools),args:{id:'X-'+rnd(1,99)},status:'blocked',error:'policy: connector not approved for '+a.dept,tokens:0,cost:0};
+      else if(roll<.11)ev={ts:Date.now(),agentId:a.id,runId:r.id,tool:pick(tools),args:{id:'X-'+rnd(1,99)},status:'error',error:'429 rate limited',tokens:tok};
+      else{const tl=tools[(r.n-1)%tools.length];const ca=COMMS_TOOLS.has(tl)?{to:'lead'+rnd(10,99)+'@client'+rnd(100,999)+'.com',channel:'email'}:{id:'X-'+rnd(1,99)};ev={ts:Date.now(),agentId:a.id,runId:r.id,tool:tl,args:ca,status:'ok',out:'rec '+rnd(1000,9999),tokens:tok};}
+      if(r.n>=r.steps)sim.runs.splice(sim.runs.indexOf(r),1)}
+    if(!r.loop){ev.vt=Math.random()<.06?vtAt(22,0):vtAt(10,30);const why=evaluate(a,ev.vt);if(why&&S.pol.mode==='enforce'&&ev.status!=='blocked'){ev.status='blocked';ev.error='policy: '+why;ev.tokens=0;ev.cost=0}}
+    ingest(ev,true,'demo');
+  }
+  paintConsole();if(S.tab==='comms')paintCommsLive();
+}
+
+/* seed-data/seed.json is the canonical, human-editable copy of this sample data (the seed-data/ folder
+   also holds it split one-file-per-record for easier diffing). This SEED literal is a hand-synced copy
+   used only by bootLocal()'s localStorage fallback — there is no build step to generate it automatically,
+   so if you edit one, edit the other to match. */
+const SEED={"departments":{"d_sales":{"name":"Sales","head":"Dana Ortiz","budget":3000,"models":["Claude Sonnet 5.5","Claude Haiku 5.5","GPT"],"connectors":["Gmail","CRM (GHL)","Google Drive"],"hoursStart":"08:00","hoursEnd":"18:00","days":"Mon-Fri","alwaysOn":false,"costCenter":"CC-100","hardCap":false},"d_engineering":{"name":"Engineering","head":"Marcus Hale","budget":7000,"models":["Claude Opus 5.5","Claude Sonnet 5.5","Claude Haiku 5.5","GPT","Gemini"],"connectors":["GitHub","Slack","Google Drive"],"hoursStart":"08:00","hoursEnd":"18:00","days":"Mon-Fri","alwaysOn":false,"costCenter":"CC-200","hardCap":false},"d_recruiting":{"name":"Recruiting","head":"Priya Nash","budget":2400,"models":["Claude Sonnet 5.5","Claude Haiku 5.5"],"connectors":["Gmail","CRM (GHL)","Google Drive"],"hoursStart":"08:00","hoursEnd":"18:00","days":"Mon-Fri","alwaysOn":false,"costCenter":"CC-300","hardCap":false},"d_marketing":{"name":"Marketing","head":"Leo Reid","budget":2300,"models":["Claude Sonnet 5.5","Claude Haiku 5.5","GPT","Gemini"],"connectors":["Gmail","Google Drive","Slack"],"hoursStart":"08:00","hoursEnd":"18:00","days":"Mon-Fri","alwaysOn":false,"costCenter":"CC-400","hardCap":true},"d_finance":{"name":"Finance","head":"Tess Boyd","budget":1500,"models":["Claude Sonnet 5.5","Claude Haiku 5.5"],"connectors":["QuickBooks","Google Drive"],"hoursStart":"08:00","hoursEnd":"18:00","days":"Mon-Fri","alwaysOn":false,"costCenter":"CC-500","hardCap":true},"d_operations":{"name":"Operations","head":"Sam Cruz","budget":1900,"models":["Claude Sonnet 5.5","Claude Haiku 5.5"],"connectors":["Slack","Zendesk","Google Drive"],"hoursStart":"08:00","hoursEnd":"18:00","days":"Mon-Fri","alwaysOn":false,"costCenter":"CC-600","hardCap":false},"d_support":{"name":"Support","head":"Ava Brooks","budget":1700,"models":["Claude Sonnet 5.5","Claude Haiku 5.5"],"connectors":["Zendesk","Gmail","Slack"],"hoursStart":"08:00","hoursEnd":"18:00","days":"Mon-Fri","alwaysOn":true,"costCenter":"CC-700","hardCap":false}},
+"people":{"p_dana_ortiz":{"name":"Dana Ortiz","dept":"Sales","role":"Dept head","quota":500,"models":["Claude Sonnet 5.5","Claude Haiku 5.5"],"monthCost":111},"p_ben_shaw":{"name":"Ben Shaw","dept":"Sales","role":"Employee","quota":300,"models":["Claude Sonnet 5.5","Claude Haiku 5.5"],"monthCost":73},"p_cora_diaz":{"name":"Cora Diaz","dept":"Sales","role":"Employee","quota":300,"models":["Claude Sonnet 5.5","Claude Haiku 5.5"],"monthCost":183},"p_marcus_hale":{"name":"Marcus Hale","dept":"Engineering","role":"Dept head","quota":500,"models":["Claude Opus 5.5","Claude Sonnet 5.5"],"monthCost":56},"p_kai_lin":{"name":"Kai Lin","dept":"Engineering","role":"Employee","quota":300,"models":["Claude Opus 5.5","Claude Sonnet 5.5"],"monthCost":158},"p_rae_patel":{"name":"Rae Patel","dept":"Engineering","role":"Employee","quota":300,"models":["Claude Opus 5.5","Claude Sonnet 5.5"],"monthCost":120},"p_omar_reyes":{"name":"Omar Reyes","dept":"Engineering","role":"Employee","quota":300,"models":["Claude Opus 5.5","Claude Sonnet 5.5"],"monthCost":53},"p_priya_nash":{"name":"Priya Nash","dept":"Recruiting","role":"Dept head","quota":500,"models":["Claude Sonnet 5.5","Claude Haiku 5.5"],"monthCost":152},"p_gia_moss":{"name":"Gia Moss","dept":"Recruiting","role":"Employee","quota":300,"models":["Claude Sonnet 5.5","Claude Haiku 5.5"],"monthCost":48},"p_leo_reid":{"name":"Leo Reid","dept":"Marketing","role":"Dept head","quota":500,"models":["Claude Sonnet 5.5","Claude Haiku 5.5"],"monthCost":135},"p_nia_price":{"name":"Nia Price","dept":"Marketing","role":"Employee","quota":300,"models":["Claude Sonnet 5.5","Claude Haiku 5.5"],"monthCost":55},"p_tess_boyd":{"name":"Tess Boyd","dept":"Finance","role":"Dept head","quota":500,"models":["Claude Sonnet 5.5","Claude Haiku 5.5"],"monthCost":60},"p_uma_cole":{"name":"Uma Cole","dept":"Finance","role":"Employee","quota":300,"models":["Claude Sonnet 5.5","Claude Haiku 5.5"],"monthCost":133},"p_sam_cruz":{"name":"Sam Cruz","dept":"Operations","role":"Dept head","quota":500,"models":["Claude Sonnet 5.5","Claude Haiku 5.5"],"monthCost":222},"p_wes_hart":{"name":"Wes Hart","dept":"Operations","role":"Employee","quota":300,"models":["Claude Sonnet 5.5","Claude Haiku 5.5"],"monthCost":67},"p_ava_brooks":{"name":"Ava Brooks","dept":"Support","role":"Dept head","quota":500,"models":["Claude Sonnet 5.5","Claude Haiku 5.5"],"monthCost":89},"p_hugo_frost":{"name":"Hugo Frost","dept":"Support","role":"Employee","quota":300,"models":["Claude Sonnet 5.5","Claude Haiku 5.5"],"monthCost":178},"p_iris_webb":{"name":"Iris Webb","dept":"Support","role":"Employee","quota":300,"models":["Claude Sonnet 5.5","Claude Haiku 5.5"],"monthCost":248},"p_marcus_crowell":{"name":"Marcus Crowell","dept":"Recruiting","role":"Back office","quota":600,"models":["Claude Opus 5.5","Claude Sonnet 5.5","Claude Haiku 5.5","GPT","Gemini"],"monthCost":180}},
+"agents":{"a_1":{"name":"Lead researcher","dept":"Sales","owner":"Ben Shaw","model":"Claude Sonnet 5.5","connectors":["CRM (GHL)","Gmail"],"env":"prod","version":"1.4.2","status":"active","schedule":"dept hours","notes":"","history":[{"at":1760000000000,"v":"1.4.2","env":"prod"}],"platform":"Claude","monthRuns":620,"monthCost":880,"minutesSaved":14,"overrideRate":6,"successRate":92},"a_2":{"name":"Deal updater","dept":"Sales","owner":"Cora Diaz","model":"Claude Haiku 5.5","connectors":["CRM (GHL)"],"env":"prod","version":"2.0.1","status":"active","schedule":"dept hours","notes":"","history":[{"at":1760000000000,"v":"2.0.1","env":"prod"}],"platform":"Claude","monthRuns":1900,"monthCost":210,"minutesSaved":8,"overrideRate":3,"successRate":96},"a_3":{"name":"Code reviewer","dept":"Engineering","owner":"Kai Lin","model":"Claude Opus 5.5","connectors":["GitHub"],"env":"prod","version":"3.1.0","status":"active","schedule":"dept hours","notes":"","history":[{"at":1760000000000,"v":"3.1.0","env":"prod"}],"platform":"Claude","monthRuns":740,"monthCost":1450,"minutesSaved":12,"overrideRate":9,"successRate":94},"a_4":{"name":"Test triager","dept":"Engineering","owner":"Rae Patel","model":"Claude Sonnet 5.5","connectors":["GitHub","Slack"],"env":"staging","version":"0.9.4","status":"active","schedule":"dept hours","notes":"","history":[{"at":1760000000000,"v":"0.9.4","env":"staging"}],"platform":"Claude","monthRuns":310,"monthCost":420,"minutesSaved":10,"overrideRate":15,"successRate":88},"a_5":{"name":"Candidate sourcer","dept":"Recruiting","owner":"Gia Moss","model":"Hermes","connectors":["CRM (GHL)","Gmail"],"env":"prod","version":"1.2.0","status":"active","schedule":"dept hours","notes":"","history":[{"at":1760000000000,"v":"1.2.0","env":"prod"}],"platform":"Hermes","monthRuns":280,"monthCost":300,"minutesSaved":9,"overrideRate":22,"successRate":81},"a_6":{"name":"Screen scheduler","dept":"Recruiting","owner":"Priya Nash","model":"Copilot","connectors":["Gmail"],"env":"prod","version":"1.0.7","status":"active","schedule":"dept hours","notes":"","history":[{"at":1760000000000,"v":"1.0.7","env":"prod"}],"platform":"Microsoft Copilot","monthRuns":520,"monthCost":160,"minutesSaved":12,"overrideRate":8,"successRate":90},"a_7":{"name":"Campaign analyst","dept":"Marketing","owner":"Nia Price","model":"Gemini","connectors":["Google Drive"],"env":"prod","version":"1.1.0","status":"active","schedule":"dept hours","notes":"","history":[{"at":1760000000000,"v":"1.1.0","env":"prod"}],"platform":"Google Gemini","monthRuns":260,"monthCost":190,"minutesSaved":15,"overrideRate":10,"successRate":89},"a_8":{"name":"Invoice reconciler","dept":"Finance","owner":"Uma Cole","model":"Claude Sonnet 5.5","connectors":["QuickBooks"],"env":"dev","version":"0.3.0","status":"draft","schedule":"dept hours","notes":"","history":[{"at":1760000000000,"v":"0.3.0","env":"dev"}],"platform":"Claude","monthRuns":0,"monthCost":0,"minutesSaved":0,"overrideRate":0,"successRate":0},"a_9":{"name":"Ticket responder","dept":"Support","owner":"Hugo Frost","model":"Claude Haiku 5.5","connectors":["Zendesk","Gmail"],"env":"prod","version":"2.2.3","status":"active","schedule":"24/7","notes":"","history":[{"at":1760000000000,"v":"2.2.3","env":"prod"}],"platform":"Claude","monthRuns":3400,"monthCost":520,"minutesSaved":6,"overrideRate":4,"successRate":97},"a_10":{"name":"Status notifier","dept":"Operations","owner":"Wes Hart","model":"Other","connectors":["Slack"],"env":"prod","version":"1.0.2","status":"active","schedule":"dept hours","notes":"","history":[{"at":1760000000000,"v":"1.0.2","env":"prod"}],"platform":"Make","monthRuns":1250,"monthCost":110,"minutesSaved":5,"overrideRate":3,"successRate":98},"a_11":{"name":"Meeting summarizer","dept":"Operations","owner":"Sam Cruz","model":"Copilot","connectors":["Slack","Google Drive"],"platform":"Microsoft Copilot","env":"prod","version":"1.0.0","status":"active","schedule":"dept hours","notes":"","history":[{"at":1760000000000,"v":"1.0.0","env":"prod"}],"monthRuns":430,"monthCost":95,"minutesSaved":20,"overrideRate":5,"successRate":95},"a_12":{"name":"Docs drafter","dept":"Marketing","owner":"Leo Reid","model":"Gemini","connectors":["Google Drive","Gmail"],"platform":"Google Gemini","env":"staging","version":"0.6.1","status":"active","schedule":"dept hours","notes":"","history":[{"at":1760000000000,"v":"0.6.1","env":"staging"}],"monthRuns":180,"monthCost":120,"minutesSaved":25,"overrideRate":12,"successRate":86},"a_13":{"name":"Research agent","dept":"Engineering","owner":"Omar Reyes","model":"Hermes","connectors":["GitHub"],"platform":"Hermes","env":"dev","version":"0.2.0","status":"active","schedule":"dept hours","notes":"","history":[{"at":1760000000000,"v":"0.2.0","env":"dev"}],"monthRuns":90,"monthCost":140,"minutesSaved":30,"overrideRate":18,"successRate":78}},
+"connectors":{"c_gmail":{"name":"Gmail","scopes":"Read, draft","status":"connected","needsApproval":true,"notes":"","owner":"Priya Nash","credentialRef":"vault://gmail-oauth","lastRotated":"2026-08-20","rotateEveryDays":90},"c_google":{"name":"Google Drive","scopes":"Read","status":"connected","needsApproval":false,"notes":"","owner":"Marcus Hale","credentialRef":"vault://gdrive-sa","lastRotated":"2026-10-01","rotateEveryDays":90},"c_crm":{"name":"CRM (GHL)","scopes":"Read, write contacts","status":"connected","needsApproval":false,"notes":"","owner":"Dana Ortiz","credentialRef":"vault://ghl-api","lastRotated":"2026-07-15","rotateEveryDays":90},"c_github":{"name":"GitHub","scopes":"Read, PRs","status":"connected","needsApproval":false,"notes":"","owner":"Marcus Hale","credentialRef":"vault://github-app","lastRotated":"2026-09-10","rotateEveryDays":60},"c_quickbooks":{"name":"QuickBooks","scopes":"Read","status":"pending","needsApproval":true,"notes":"","owner":"Tess Boyd","credentialRef":"vault://qbo-oauth","lastRotated":"2026-09-30","rotateEveryDays":90},"c_slack":{"name":"Slack","scopes":"Post to channels","status":"connected","needsApproval":false,"notes":"","owner":"Sam Cruz","credentialRef":"vault://slack-bot","lastRotated":"2026-10-12","rotateEveryDays":120},"c_zendesk":{"name":"Zendesk","scopes":"Read, reply","status":"connected","needsApproval":false,"notes":"","owner":"Ava Brooks","credentialRef":"vault://zendesk-token","lastRotated":"2026-08-01","rotateEveryDays":90}},
+"sources":{"s_1":{"name":"Demo stream","type":"Demo","endpoint":"Simulated tool calls for trying the console","status":"active"},"s_2":{"name":"Live ingest","type":"Live ingest","endpoint":"Records written to this page's logs collection","status":"active"},"s_3":{"name":"Claude Console / Admin API","type":"Claude Console / Admin API","endpoint":"Usage and cost by API key. Needs an admin key.","status":"planned"},"s_4":{"name":"GoHighLevel","type":"GoHighLevel","endpoint":"Workflow and AI action history","status":"planned"},"s_5":{"name":"Make scenarios","type":"Make","endpoint":"Scenario run history","status":"planned"},"s_6":{"name":"Gateway / proxy","type":"Webhook / gateway","endpoint":"LiteLLM, Helicone or similar, posting one record per call","status":"planned"}},
+"platforms":{"pl_1":{"name":"Claude","vendor":"Anthropic","kind":"Assistant / agent builder","connection":"Admin / usage API","status":"connected","notes":"Claude Console and Claude Code agents"},"pl_2":{"name":"Microsoft Copilot","vendor":"Microsoft","kind":"Assistant / agent builder","connection":"Webhook","status":"pilot","notes":"Copilot Studio agents; logs via Power Automate webhook"},"pl_3":{"name":"Google Gemini","vendor":"Google","kind":"Model API","connection":"Live ingest","status":"connected","notes":"Gemini API and Workspace agents"},"pl_4":{"name":"Hermes","vendor":"Nous Research","kind":"Open-source agent","connection":"Live ingest","status":"pilot","notes":"Self-hosted Hermes agents; send records to Live ingest"},"pl_5":{"name":"OpenAI / ChatGPT","vendor":"OpenAI","kind":"Assistant / agent builder","connection":"Not connected yet","status":"planned","notes":"Custom GPTs and Agents SDK"},"pl_6":{"name":"Make","vendor":"Make","kind":"Workflow automation","connection":"Import file","status":"planned","notes":"Scenario run history"},"pl_7":{"name":"GoHighLevel","vendor":"HighLevel","kind":"Workflow automation","connection":"Not connected yet","status":"planned","notes":"Workflow AI actions"},"pl_8":{"name":"Custom / in-house","vendor":"Your team","kind":"Custom / in-house","connection":"Live ingest","status":"connected","notes":"Scripts and internal services"}},
+"requests":{"r_1":{"type":"Connector access","dept":"Finance","requester":"Uma Cole","item":"Gmail","reason":"Send invoice reminders from the Invoice reconciler","status":"pending"},"r_2":{"type":"Model access","dept":"Recruiting","requester":"Gia Moss","item":"Hermes","reason":"Sourcer agent already runs on Hermes in pilot","status":"pending"},"r_3":{"type":"Budget increase","dept":"Support","requester":"Ava Brooks","item":"500","reason":"Ticket volume up this month","status":"pending"},"r_4":{"type":"Deploy to production","dept":"Engineering","requester":"Rae Patel","item":"Test triager","reason":"Passed two weeks in staging","status":"pending"}},
+"alertRules":{"al_1":{"name":"Loop caught","trigger":"Loop caught","channel":"Slack","target":"#agent-ops","enabled":true},"al_2":{"name":"Budget warning","trigger":"Budget at 80%","channel":"Email","target":"dept head","enabled":true},"al_3":{"name":"Policy blocks","trigger":"Policy block","channel":"In-app","target":"","enabled":true},"al_4":{"name":"Off-hours activity","trigger":"After-hours call","channel":"In-app","target":"","enabled":true},"al_5":{"name":"Rotate credentials","trigger":"Credential rotation due","channel":"Email","target":"owner","enabled":true},"al_6":{"name":"Email/SMS ping-pong","trigger":"Comms ping-pong","channel":"Slack","target":"#agent-ops","enabled":true}}};
+
+function applySeed(src){
+  for(const k of KINDS){const m=src[k]||{};S[k]=Object.fromEntries(Object.entries(m).map(([id,d])=>[id,{id,...JSON.parse(JSON.stringify(d))}]))}
+  if(src.cfg)Object.assign(S.cfg,src.cfg);
+  if(src.pol)Object.assign(S.pol,src.pol);
+  if(src.comms)S.comms=JSON.parse(JSON.stringify(src.comms));
+  if(src.roleMatrix)S.roleMatrix=JSON.parse(JSON.stringify(src.roleMatrix));
+  if(src.audit)S.audit=JSON.parse(JSON.stringify(src.audit));
+}
+function bootLocal(){
+  S.local=true;S.canWrite=true;
+  let saved=null;try{saved=JSON.parse(localStorage.getItem('acr_local_v1')||'null')}catch(e){}
+  if(saved&&saved.departments&&Object.keys(saved.departments).length)applySeed(saved);
+  else{applySeed(SEED);saveLocal()}
+  const sub=$('#sub');
+  sub.replaceChildren('Agents, people, departments, connectors, and email/SMS ping-pong protection. ',
+    h('span',{class:'small'},'(Saved in browser · '),
+    h('button',{class:'linkbtn',type:'button',onclick:()=>{localStorage.removeItem('acr_local_v1');S.threads={};S.commsStats={checked:0,selfBlocked:0,ackStopped:0,pingPongTrips:0,blockedMsgs:0,savedUsd:0};S.comms=JSON.parse(JSON.stringify(DEFAULT_COMMS));applySeed(SEED);saveLocal();paintRole();paintTabs();render();toast('Sample data reset')}},'Reset sample data'),
+    h('span',{class:'small'},')'));
+  paintRole();paintChips();paintTabs();render();
+}
+
+/* ---------- boot ---------- */
+async function boot(){
+  const hv=location.hash.slice(1);if(VIEWS[hv])S.tab=hv;
+  paintRole();paintChips();paintTabs();render();
+  setInterval(simTick,1000);
+  setInterval(()=>{if(['agents','people','departments','approvals','cost'].includes(S.tab)){if($('#sheet').hidden&&!document.activeElement.closest('#view button'))render()}},6000);
+  try{const user=await claude.use('user');if(user&&user.can){const w=user.can('data.write');if(w===false){S.canWrite=false}}}catch(e){}
+  let db=null;try{db=await claude.use('db')}catch(e){}
+  if(!db){bootLocal();return}
+  S.db=db;
+  for(const k of KINDS){db.collection(k).onSnapshot((snap)=>{S[k]=Object.fromEntries(snap.docs.map(d=>[d.id,{id:d.id,...d.data()}]));if(k==='departments'||k==='people')paintRole();paintTabs();if(!($('#sheet').hidden)&&k!=='incidents')return;render()},()=>{})}
+  db.doc('config/policy').onSnapshot((x)=>{if(x.exists)Object.assign(S.pol,x.data())},()=>{});
+  db.doc('config/roles').onSnapshot((x)=>{if(x.exists&&x.data().m)S.roleMatrix=x.data().m},()=>{});
+  db.doc('config/comms').onSnapshot((x)=>{if(x.exists)Object.assign(S.comms,x.data());if(S.tab==='comms'&&!document.activeElement.matches('#view input,#view select'))render()},()=>{});
+  db.collection('audit').orderBy('at','desc').limit(200).onSnapshot((snap)=>{S.audit=Object.fromEntries(snap.docs.map(d=>[d.id,{id:d.id,...d.data()}]));if(S.tab==='audit'&&!document.activeElement.matches('#view input'))render()},()=>{});
+  db.doc('config/loop').onSnapshot((s)=>{if(s.exists)Object.assign(S.cfg,s.data());if(S.tab==='console'&&!document.activeElement.matches('#view input,#view select'))render()},()=>{});
+  let first=true;
+  db.collection('logs').orderBy('ts','desc').limit(150).onSnapshot((snap)=>{
+    const ch=snap.docChanges().filter(c=>c.type==='added').map(c=>c.doc.data());
+    ch.sort((a,b)=>new Date(a.ts)-new Date(b.ts));
+    for(const d of ch){d.ts=new Date(d.ts).getTime()||Date.now();if(S.src.live)ingest(d,!first,'live')}
+    first=false;paintConsole()},()=>{});
+}
+boot();
+})();
+</script>
